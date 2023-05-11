@@ -1,10 +1,10 @@
 class TGraph;
 
 class CrossSections {
- TGraph *gSigmaT, *gSigmaE, *gSigmaPiN;
+ TGraph *gSigmaPimp, *gSigmaPipp;
 public:
  CrossSections(void);
  ~CrossSections(void);
- void NN(double Ekin, double& sigmaT, double& sigmaE, double& sigmaP);
- double piN(double s);
+ void NN(double Ekin, double& sigmaNN);
+ double piN(double sqrts);
 };
