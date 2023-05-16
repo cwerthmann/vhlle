@@ -188,6 +188,8 @@ void MultiHydro::frictionSubstep()
     double flux_p [4] = {0.}, flux_t [4] = {0.}, flux_f [4] = {0.},
            flux_pf [4] = {0.}, flux_tf [4] = {0.},
            nbflux_p=0.0, nbflux_t=0.0, nbflux_f=0.0, nbflux_pf=0.0, nbflux_tf=0.0;
+    double uput = gammap*gammat*(1.0 - vxp*vxt - vyp*vyt - vzp*vzt);
+    double savg = 2.0*mN*mN*(1.0 + uput);
 
      // 1. projectile-target friction
     if (ep>0. && et>0.) {
@@ -199,23 +201,21 @@ void MultiHydro::frictionSubstep()
     double ngluon_t = 16 * zeta3 * pow(TCt, 3) / pow(M_PI, 2);
     double dens_p, dens_t;
     //if (ep < 0.7) {
-     dens_p = xi_h*pow(2*mN/sqrt(s), 0.5)*nbp;
+     dens_p = xi_h*pow(2*mN/sqrt(savg), 0.5)*nbp;
     /*} else {
      dens_p = xi_q*pow(2*mN/sqrt(s), 0.5)*(nquark_p+ngluon_p)/3;
     }*/
     //if (et < 0.7) {
-     dens_t = xi_h*pow(2*mN/sqrt(s), 0.5)*nbt;
+     dens_t = xi_h*pow(2*mN/sqrt(savg), 0.5)*nbt;
     /*} else {
      dens_t = xi_q*pow(2*mN/sqrt(s), 0.5)*(nquark_t+ngluon_t)/3;
     }*/
     //double sigma_gg = 0.3; // fm^2
     //double D_QGP = mN*Vrel*sigma_gg;
     // u_p^\mu u_t_\mu
-    double uput = gammap*gammat*(1.0 - vxp*vxt - vyp*vyt - vzp*vzt);
     // typical s (Mandelstam) variable
-    double s = 2.0*mN*mN*(1.0 + uput);
     double sigmaNN;
-    xsect->NN(sqrts,sigmaNN);
+    xsect->NN(std::sqrt(savg),sigmaNN);
     // Moeller factor
     double Vrel = sqrt(uput*uput - 1.0);
     // friction coefficient
@@ -245,14 +245,14 @@ void MultiHydro::frictionSubstep()
    }
    // 2. projectile-fireball friction
    if(ep>0. && ef>0.) {
-    double dens_p = xi_fa*pow(mN/sqrt(s), 2)*nbp;
+    double dens_p = xi_fa*pow(mN/sqrt(savg), 2)*nbp;
     double vptilde=std::sqrt(vfsq+vpsq+2.0*vfvp+vfvp*vfvp-vfsq*vpsq)/(1.0+vfvp);
     double gammaptilde=1.0/std::sqrt(1.0-vptilde);
     EfIntegrand EfI(xsect,TCf,vptilde);
     ROOT::Math::Functor1D func(&EfI,&EfIntegrand::Eval);
     ROOT::Math::GaussIntegrator GI;
-    GI.setFunction(func);
-    GI.setTolerance(1e-5);
+    GI.SetFunction(func);
+    GI.SetRelTolerance(1e-5);
     double smin=pow(mN+mpi,2), smax=1e6;
     double Ef=GI.Integral(smin,smax);
     for(int i=0; i<4; i++){
@@ -262,14 +262,14 @@ void MultiHydro::frictionSubstep()
    }
    // 3. target-fireball friction
    if(et>0. && ef>0.) {
-    double dens_t = xi_fa*pow(mN/sqrt(s), 2)*nbt;
+    double dens_t = xi_fa*pow(mN/sqrt(savg), 2)*nbt;
     double vttilde=std::sqrt(vfsq+vtsq+2.0*vfvt+vfvt*vfvt-vfsq*vtsq)/(1.0+vfvt);
-    double gammaptilde=1.0/std::sqrt(1.0-vttilde);
+    double gammattilde=1.0/std::sqrt(1.0-vttilde);
     EfIntegrand EfI(xsect,TCf,vttilde);
     ROOT::Math::Functor1D func(&EfI,&EfIntegrand::Eval);
     ROOT::Math::GaussIntegrator GI;
-    GI.setFunction(func);
-    GI.setTolerance(1e-5);
+    GI.SetFunction(func);
+    GI.SetRelTolerance(1e-5);
     double smin=pow(mN+mpi,2), smax=1e6;
     double Ef=GI.Integral(smin,smax);
     for(int i=0; i<4; i++){
@@ -289,7 +289,7 @@ void MultiHydro::frictionSubstep()
        _Q_f[NB_] + (nbflux_f-nbflux_tf-nbflux_pf)*tauf >= 0 &&
        _Q_p[T_] + (flux_p[0]+flux_pf[0])*taup >= mN*(_Q_p[NB_] + (nbflux_p+nbflux_pf)*taup) &&
        _Q_t[T_] + (flux_t[0]+flux_tf[0])*taut >= mN*(_Q_t[NB_] + (nbflux_t+nbflux_tf)*taup) &&
-       _Q_f[T_] + (-flux_pf[0]-flux_tf[0]+flux_f[0])*tauf >= mN*(_Q_f[NB_]+nbflux_f-nbflux_tf-nbflux_pf)*tauf)) {
+       _Q_f[T_] + (-flux_pf[0]-flux_tf[0]+flux_f[0])*tauf >= mN*(_Q_f[NB_]+(nbflux_f-nbflux_tf-nbflux_pf)*tauf)) {
     c_p->addFlux((flux_p[0]+flux_pf[0])*taup, (flux_p[1]+flux_pf[1])*taup,
      (flux_p[2]+flux_pf[2])*taup, (flux_p[3]+flux_pf[3])*taup,(nbflux_p+nbflux_pf)*taup, 0., 0.);
     c_t->addFlux((flux_t[0]+flux_tf[0])*taut, (flux_t[1]+flux_tf[1])*taut,
@@ -302,7 +302,7 @@ void MultiHydro::frictionSubstep()
     c_p->clearFlux();
     c_t->clearFlux();
     c_f->clearFlux();
-   }else{
+   } else {
     std::cerr << "friction too large for cell " << ix <<", "<< iy <<", "<< iz << " at time "<<taup<<std::endl;
     std::cerr << "resulting QpNB: " << _Q_p[NB_] + (nbflux_p+nbflux_pf)*taup
         <<", QtNB: " << _Q_t[NB_] + (nbflux_t+nbflux_tf)*taup

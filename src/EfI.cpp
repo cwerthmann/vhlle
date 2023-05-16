@@ -8,12 +8,14 @@ EfIntegrand::EfIntegrand(CrossSections *_xsect, double _Tf, double _valphatilde)
     xsect=_xsect;
     Tf=_Tf;
     valphatilde=_valphatilde;
-    gammaalphatilde=1.0/std::sqrt(1.0-_valphatilde*_valphatilde)
+    gammaalphatilde=1.0/std::sqrt(1.0-_valphatilde*_valphatilde);
 }
 
 double EfIntegrand::Eval(double s){
+    double mN=0.939;
+    double mpi = 0.1396;
     double sigmaNpi=xsect-> piN(std::sqrt(s));
-    double seff=s-mN-mpi;
+    double seff=s-mN*mN-mpi*mpi;
     double p0min=0.5*seff*gammaalphatilde/mN*(1.0-valphatilde*std::sqrt(1.0-4.0*mN*mN*mpi*mpi/seff/seff));
     double p0max=0.5*seff*gammaalphatilde/mN*(1.0+valphatilde*std::sqrt(1.0-4.0*mN*mN*mpi*mpi/seff/seff));
     double moller=0.5*std::sqrt(seff*seff-4.0*mN*mN*mpi*mpi);

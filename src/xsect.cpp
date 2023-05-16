@@ -11,18 +11,18 @@ using namespace std;
 CrossSections::CrossSections(void)
 {
  // reading tabular data for pim-p total cross section
- ifstream fin("tables/pimprot-pdd.dat") ;
- if(!fin){ cout << "cannot read tables/pimprot-pdd.dat\n"; exit(1) ; }
+ ifstream finpimp("tables/pimprot-pdd.dat") ;
+ if(!finpimp){ cout << "cannot read tables/pimprot-pdd.dat\n"; exit(1) ; }
  string line ;
  istringstream instream ;
  const int dimTb = 251;
  double plab;
  double sqrtsm [dimTb], sigpimp [dimTb];
- getline(fin, line) ;
- getline(fin, line) ;
+ getline(finpimp, line) ;
+ getline(finpimp, line) ;
  int i=0;
  do{
-  getline(fin, line) ;
+  getline(finpimp, line) ;
   instream.str(line) ;
   instream.seekg(0) ;
   instream.clear() ; // does not work with gcc 4.1 otherwise
@@ -35,14 +35,14 @@ CrossSections::CrossSections(void)
  gSigmaPimp = new TGraph(i, sqrtsm, sigpimp);
 
  // reading tabular data for pip-p total cross section
- fin("tables/pipprot-pdd.dat");
- if(!fin){ cout << "cannot read tables/pipprot-pdd.dat\n"; exit(1) ; }
+ ifstream finpipp("tables/pipprot-pdd.dat");
+ if(!finpipp){ cout << "cannot read tables/pipprot-pdd.dat\n"; exit(1) ; }
  double sqrtsp [dimTb], sigpipp [dimTb];
- getline(fin, line) ;
- getline(fin, line) ;
+ getline(finpimp, line) ;
+ getline(finpimp, line) ;
  i=0;
  do{
-  getline(fin, line) ;
+  getline(finpipp, line) ;
   instream.str(line) ;
   instream.seekg(0) ;
   instream.clear() ; // does not work with gcc 4.1 otherwise
@@ -76,29 +76,29 @@ void CrossSections::NN(double sqrts, double& sigmaNN)
  }else if(sqrts<a){
     sigmapp=M*pow(sqrts-2*mN,2);
     sigmapn=a3*sqrts*sqrts+b3*sqrts+c3;
-    sigmaNN=0.5*(sgimapp+sigmapn);
+    sigmaNN=0.5*(sigmapp+sigmapn);
  }else if(sqrts<a2){
-    sigmapp=N*pow(x-a,e)*std::exp(-b*(x-c))+k;
+    sigmapp=N*pow(sqrts-a,e)*std::exp(-b*(sqrts-c))+k;
     sigmapn=a3*sqrts*sqrts+b3*sqrts+c3;
-    sigmaNN=0.5*(sgimapp+sigmapn);
+    sigmaNN=0.5*(sigmapp+sigmapn);
  }else if(sqrts<3.5){
-    sigmapp=N*pow(x-a,e)*std::exp(-b*(x-c))+k;
-    sigmapn=N2*pow(x-a2,e2)*std::exp(-b2*(x-c2))+k2;
-    sigmaNN=0.5*(sgimapp+sigmapn);
+    sigmapp=N*pow(sqrts-a,e)*std::exp(-b*(sqrts-c))+k;
+    sigmapn=N2*pow(sqrts-a2,e2)*std::exp(-b2*(sqrts-c2))+k2;
+    sigmaNN=0.5*(sigmapp+sigmapn);
  }else if(sqrts<7.0){
-    sigmapp=b4*pow(x-2.5,-a4);
-    sigmapn=b8*pow(x-2.5,-a8);
-    sigmaNN=0.5*(sgimapp+sigmapn);
+    sigmapp=b4*pow(sqrts-2.5,-a4);
+    sigmapn=b8*pow(sqrts-2.5,-a8);
+    sigmaNN=0.5*(sigmapp+sigmapn);
  }else if(sqrts<18.0){
     sigmaNN=k7;
  }else if(sqrts<85.0){
-    sigmaNN=a6*std::log(x)+b6;
+    sigmaNN=a6*std::log(sqrts)+b6;
  }else if(sqrts<1000.0){
-    sigmaNN=a5*std::log(x)+b5;
+    sigmaNN=a5*std::log(sqrts)+b5;
  }
 }
 
-double CrossSections::piN(double s)
+double CrossSections::piN(double sqrts)
 {
  double mN = 0.939;
  double mPi = 0.1396;
@@ -123,5 +123,6 @@ double CrossSections::piN(double s)
   return 0.5*(sigmapimp+sigmapipp);
  }else if(sqrts<1000.0){
   return api2*std::log(sqrts)+bpi2;
+ }
  return 0.0;
 }
