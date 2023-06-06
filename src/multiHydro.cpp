@@ -221,26 +221,32 @@ void MultiHydro::frictionSubstep()
     // friction coefficient
     double D_N = mN*Vrel*sigmaNN;
 
-    for(int i=0; i<4; i++){
-     if (frictionModel == 1) {
-      // Csernai friction terms
+    if (frictionModel == 1) {
+     for(int i=0; i<4; i++){
+      // Csernai Tmunu friction terms
       flux_p[i] += -dens_p*dens_t*up[i]*D_N*h_p->getDtau();
       flux_t[i] += -dens_p*dens_t*ut[i]*D_N*h_p->getDtau();
+
+      if (formationTime > 0) {
+       addRetardedFriction((-flux_p[i]-flux_t[i])*f_p->getDx()*f_p->getDy()*f_p->getDz()*h_p->getTau(),
+         f_p->getX(ix)+U_F[1]*formationTime, f_p->getY(iy)+U_F[2]*formationTime,
+         f_p->getZ(iz)+U_F[3]*formationTime, h_p->getTau()+U_F[0]*formationTime, i);
+       flux_f[i] += calculateRetardedFriction(f_p->getX(ix), f_p->getY(iy), f_p->getZ(iz),
+                   h_p->getTau(), i)/(f_p->getDx()*f_p->getDy()*f_p->getDz()*h_p->getTau());
+      } else {
+       flux_f[i] += -flux_p[i]-flux_t[i];
+      }
+     }
+     //Csernai nb friction terms
       nbflux_p += -dens_p*dens_t/mN*D_N*h_p->getDtau();
       nbflux_t += -dens_p*dens_t/mN*D_N*h_p->getDtau();
-     } else {
+      if (formationTime > 0) {
 
-     }
-     if (formationTime > 0) {
-      addRetardedFriction((-flux_p[i]-flux_t[i])*f_p->getDx()*f_p->getDy()*f_p->getDz()*h_p->getTau(),
-        f_p->getX(ix)+U_F[1]*formationTime, f_p->getY(iy)+U_F[2]*formationTime,
-        f_p->getZ(iz)+U_F[3]*formationTime, h_p->getTau()+U_F[0]*formationTime, i);
-      flux_f[i] += calculateRetardedFriction(f_p->getX(ix), f_p->getY(iy), f_p->getZ(iz),
-                  h_p->getTau(), i)/(f_p->getDx()*f_p->getDy()*f_p->getDz()*h_p->getTau());
-     } else {
-      flux_f[i] += -flux_p[i]-flux_t[i];
-      nbflux_f += -nbflux_p-nbflux_t;
-     }
+      } else {
+       nbflux_f += -nbflux_p-nbflux_t;
+      }
+    } else {
+
     }
    }
    // 2. projectile-fireball friction
@@ -280,10 +286,61 @@ void MultiHydro::frictionSubstep()
    double taup = h_p->getTau();
    double taut = h_t->getTau();
    double tauf = h_f->getTau();
-   double _Q_p[7], _Q_t[7], _Q_f[7];
+   double _Q_p[7], _Q_t[7], _Q_f[7], Q_p_new[7]={0}, Q_t_new[7]={0}, Q_f_new[7]={0};
    c_p->getQ(_Q_p);
    c_t->getQ(_Q_t);
    c_f->getQ(_Q_f);
+   for(int i=0;i<4;i++){
+    Q_p_new[i]=_Q_p[i]+(flux_p[i]+flux_pf[i])*taup;
+    Q_t_new[i]=_Q_t[i]+(flux_t[i]+flux_tf[i])*taut;
+    Q_f_new[i]=_Q_f[i]+(flux_f[i]-flux_pf[i]-flux_tf[i])*tauf;
+   }
+    Q_p_new[4]=_Q_p[4]+(nbflux_p+nbflux_pf)*taup;
+    Q_t_new[4]=_Q_t[4]+(nbflux_t+nbflux_tf)*taut;
+    Q_f_new[4]=_Q_f[4]+(nbflux_f-nbflux_pf-nbflux_tf)*tauf;
+    double e_p_new, e_t_new, e_f_new, nb_p_new, nb_t_new, nb_f_new, p_new, nq_new, ns_new, vx_new, vy_new, vz_new;
+    //void transformPV(EoS *eos, double Q[7], double &e, double &p, double &nb, double &nq, double &ns, double &vx, double &vy, double &vz)
+    transformPV(eos,Q_p_new,e_p_new,p_new,nb_p_new,nq_new,ns_new,vx_new,vy_new,vz_new);
+    transformPV(eos,Q_t_new,e_t_new,p_new,nb_t_new,nq_new,ns_new,vx_new,vy_new,vz_new);
+    transformPV(eos,Q_f_new,e_f_new,p_new,nb_f_new,nq_new,ns_new,vx_new,vy_new,vz_new);
+
+   double friction_rel=max((nbp-nb_p_new)/nbp,
+                        max((nbt-nb_t_new)/nbt,
+                        max((nbf-nb_f_new)/nbf,
+                        max((ep-e_p_new-mN*nb_p_new)/(ep-mN*nb_p_new),
+                        max((et-e_t_new-mN*nb_t_new)/(et-mN*nb_t_new),
+                        (ef-e_f_new-mN*nb_f_new)/(ef-mN*nb_f_new))))));
+   double rescaling=pow(pow(friction_rel/MaxRelFriction,10.0)+1.0,-0.1);
+   for(int i=0;i<4;i++){
+    flux_f[i]*=rescaling;
+    flux_p[i]*=rescaling;
+    flux_t[i]*=rescaling;
+    flux_pf[i]*=rescaling;
+    flux_tf[i]*=rescaling;
+   }
+   nbflux_f*=rescaling;
+   nbflux_p*=rescaling;
+   nbflux_t*=rescaling;
+   nbflux_pf*=rescaling;
+   nbflux_tf*=rescaling;
+   if(rescaling<MaxRelFriction&&min(ep,et)>1e5){
+    cerr<<"unexpected rescaling by "<<rescaling<<" in cell " << ix <<", "<< iy <<", "<< iz << " at time "<<taup<<std::endl;
+    std::cerr << "current QpNb: "<<_Q_p[NB_] <<", QtNB: " << _Q_t[NB_] <<", QfNB: " << _Q_f[NB_]
+        <<", QpT: "<< _Q_p[T_] <<", QtT: " << _Q_t[T_] << ", QfT: "<< _Q_f[T_] <<std::endl;
+    std::cerr << "flux QpNB t: " << nbflux_p*taup << " f: " << nbflux_pf*taup
+        << ", flux QtNB p: " << nbflux_t*taut << " f: " << nbflux_tf*taut
+        << ", flux QpT t: " << flux_p[0]*taup << " f: " << flux_pf[0]*taup
+        << ", flux QtT p: " << flux_t[0]*taut << " f: " << flux_tf[0]*taut <<std::endl;
+    std::cerr << "resulting QpNB: " << _Q_p[NB_] + (nbflux_p+nbflux_pf)*taup
+        <<", QtNB: " << _Q_t[NB_] + (nbflux_t+nbflux_tf)*taup
+        <<", QfNB: " << _Q_f[NB_] + (nbflux_f-nbflux_tf-nbflux_pf)*tauf
+        <<", QpT: "<< _Q_p[T_] + (flux_p[0]+flux_pf[0])*taup
+        <<", QtT: " << _Q_t[T_] + (flux_t[0]+flux_tf[0])*taut
+        << ", QfT: "<< _Q_f[T_] + (-flux_pf[0]-flux_tf[0]+flux_f[0])*tauf<<std::endl;
+    std::cerr << "baryon mass minimum QpT: "<< mN*(_Q_p[NB_] + (nbflux_p+nbflux_pf)*taup)
+        << ", QtT: "<< mN*(_Q_t[NB_] + (nbflux_t+nbflux_tf)*taut)
+        << ", QfT: "<< mN*(_Q_f[NB_] + (nbflux_f-nbflux_tf-nbflux_pf)*tauf) <<std::endl;
+   }
    if (_Q_p[NB_] + (nbflux_p+nbflux_pf)*taup >= 0 &&
        _Q_t[NB_] + (nbflux_t+nbflux_tf)*taut >= 0 &&
        _Q_f[NB_] + (nbflux_f-nbflux_tf-nbflux_pf)*tauf >= 0 &&
@@ -304,12 +361,22 @@ void MultiHydro::frictionSubstep()
     c_f->clearFlux();
    } else {
     std::cerr << "friction too large for cell " << ix <<", "<< iy <<", "<< iz << " at time "<<taup<<std::endl;
+    std::cerr << "current QpNb: "<<_Q_p[NB_] <<", QtNB: " << _Q_t[NB_] <<", QfNB: " << _Q_f[NB_]
+        <<", QpT: "<< _Q_p[T_] <<", QtT: " << _Q_t[T_] << ", QfT: "<< _Q_f[T_] <<std::endl;
+    std::cerr << "flux QpNB t: " << nbflux_p*taup << " f: " << nbflux_pf*taup
+        << ", flux QtNB p: " << nbflux_t*taut << " f: " << nbflux_tf*taut
+        << ", flux QpT t: " << flux_p[0]*taup << " f: " << flux_pf[0]*taup
+        << ", flux QtT p: " << flux_t[0]*taut << " f: " << flux_tf[0]*taut <<std::endl;
     std::cerr << "resulting QpNB: " << _Q_p[NB_] + (nbflux_p+nbflux_pf)*taup
         <<", QtNB: " << _Q_t[NB_] + (nbflux_t+nbflux_tf)*taup
         <<", QfNB: " << _Q_f[NB_] + (nbflux_f-nbflux_tf-nbflux_pf)*tauf
-        <<", QpT: "<< _Q_p[0] + (flux_p[0]+flux_pf[0])*taup
-        <<", QtT: " << _Q_t[0] + (flux_t[0]+flux_tf[0])*taut
-        << ", QfT: "<< _Q_f[0] + (-flux_pf[0]-flux_tf[0]+flux_f[0])*tauf<<std::endl;
+        <<", QpT: "<< _Q_p[T_] + (flux_p[0]+flux_pf[0])*taup
+        <<", QtT: " << _Q_t[T_] + (flux_t[0]+flux_tf[0])*taut
+        << ", QfT: "<< _Q_f[T_] + (-flux_pf[0]-flux_tf[0]+flux_f[0])*tauf<<std::endl;
+    std::cerr << "baryon mass minimum QpT: "<< mN*(_Q_p[NB_] + (nbflux_p+nbflux_pf)*taup)
+        << ", QtT: "<< mN*(_Q_t[NB_] + (nbflux_t+nbflux_tf)*taut)
+        << ", QfT: "<< mN*(_Q_f[NB_] + (nbflux_f-nbflux_tf-nbflux_pf)*tauf) <<std::endl;
+
    }
    if(-flux_p[0]-flux_t[0] > 0. && c_f->getMaxM()<0.01)
     c_f->setAllM(1.0);
@@ -998,7 +1065,8 @@ int MultiHydro::findFreezeout(EoS* eosH)
  }
  delete[] ccube;
  if (nelements == 0 && h_p->getTau() > 5 + tau0)
-  return 1;   // particlization surface ended - return 1 for the evolution to stop
+  //return 1;   // particlization surface ended - return 1 for the evolution to stop
+  return 0;
  else
   return 0;   // return 0 for the evolution to continue
 }

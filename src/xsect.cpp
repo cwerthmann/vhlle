@@ -21,16 +21,15 @@ CrossSections::CrossSections(void)
  getline(finpimp, line) ;
  getline(finpimp, line) ;
  int i=0;
- do{
-  getline(finpimp, line) ;
+ while( getline(finpimp, line)){
+  if(i>dimTb-1){ cout << "CrossSections: please increase dimTb\n"; exit(1);}
   instream.str(line) ;
   instream.seekg(0) ;
   instream.clear() ; // does not work with gcc 4.1 otherwise
   instream >> sqrtsm[i] >> sigpimp[i] >> plab;
   sigpimp[i] = sigpimp[i] * 0.1; // converts [mb] -> [fm^2]
   i++;
-  if(i>dimTb-1){ cout << "CrossSections: please increase dimTb\n"; exit(1); }
- }while(!instream.fail());
+ }
  cout << "pim-p cross section: " << i << " lines read.\n";
  gSigmaPimp = new TGraph(i, sqrtsm, sigpimp);
 
@@ -38,19 +37,18 @@ CrossSections::CrossSections(void)
  ifstream finpipp("tables/pipprot-pdd.dat");
  if(!finpipp){ cout << "cannot read tables/pipprot-pdd.dat\n"; exit(1) ; }
  double sqrtsp [dimTb], sigpipp [dimTb];
- getline(finpimp, line) ;
- getline(finpimp, line) ;
+ getline(finpipp, line) ;
+ getline(finpipp, line) ;
  i=0;
- do{
-  getline(finpipp, line) ;
+ while(getline(finpipp, line)){
+  if(i>dimTb-1){ cout << "CrossSections: please increase dimTb\n"; exit(1); }
   instream.str(line) ;
   instream.seekg(0) ;
   instream.clear() ; // does not work with gcc 4.1 otherwise
   instream >> sqrtsp[i] >> sigpipp[i] >> plab;
   sigpipp[i] = sigpipp[i] * 0.1; // converts [mb] -> [fm^2]
   i++;
-  if(i>dimTb-1){ cout << "CrossSections: please increase dimTb\n"; exit(1); }
- }while(!instream.fail());
+ }
  cout << "pip-p cross section: " << i << " lines read.\n";
  gSigmaPipp = new TGraph(i, sqrtsp, sigpipp);
 }
@@ -96,6 +94,7 @@ void CrossSections::NN(double sqrts, double& sigmaNN)
  }else if(sqrts<1000.0){
     sigmaNN=a5*std::log(sqrts)+b5;
  }
+ sigmaNN*=0.1; // converts [mb] -> [fm^2]
 }
 
 double CrossSections::piN(double sqrts)

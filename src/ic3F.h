@@ -19,8 +19,9 @@ private:
  int projZ;
  int targZ;
  double WSdelta = 0.459; // diffuseness in Wood-Saxon
- const double nucleon_mass = 0.938;
+ const double nucleon_mass = 0.939;
  double tau0;
+ const double BackgroundLevel=1e-8;
 
  double Rgx, Rgy, Rgz;
  int nsmoothx;  // smoothly distribute to +- this many cells
