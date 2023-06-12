@@ -31,7 +31,6 @@ class MultiHydro {
  std::vector<std::vector<Nucleon>> nucleons;
  const double mN = 0.94; // nucleon mass [GeV]
  const double mpi = 0.1396; // pion mass [GeV]
- const double MaxRelFriction=0.9;
 
 public:
  MultiHydro(Fluid *f_p, Fluid *f_t, Fluid *f_f, Hydro *h_p, Hydro *h_t,

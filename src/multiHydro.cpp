@@ -300,22 +300,11 @@ void MultiHydro::frictionSubstep()
    transformPV(eos,Q_p_new,e_p_new,p_new,nb_p_new,nq_new,ns_new,vx_new,vy_new,vz_new,false);
    transformPV(eos,Q_t_new,e_t_new,p_new,nb_t_new,nq_new,ns_new,vx_new,vy_new,vz_new,false);
    transformPV(eos,Q_f_new,e_f_new,p_new,nb_f_new,nq_new,ns_new,vx_new,vy_new,vz_new,false);
-   // compute largest relative change to e-mN*nb across the fluids
-   double friction_rel=max((ep-e_p_new-mN*nb_p_new)/(ep-mN*nb_p_new),
-                        max((et-e_t_new-mN*nb_t_new)/(et-mN*nb_t_new),
-                        (ef-e_f_new-mN*nb_f_new)/(ef-mN*nb_f_new)));
-   // overall rescaling factor for all friction terms:
-   // if friction_rel<<1, the factor is 1, but it smoothly transitions to a rescaling that
-   // will keep the relative change to e-mN*nb below the value specified by MaxRelFriction
-   double rescaling=pow(pow(friction_rel/MaxRelFriction,10.0)+1.0,-0.1);
-   for(int i=0;i<4;i++){
-    flux_f[i]*=rescaling;
-    flux_p[i]*=rescaling;
-    flux_t[i]*=rescaling;
-    flux_pf[i]*=rescaling;
-    flux_tf[i]*=rescaling;
-   }
-   if (_Q_p[0] + (flux_p[0]+flux_pf[0])*taup >= 0 &&
+   double energy_balance=min(e_p_new-mN*nb_p_new,
+                            min(e_t_new-mN*nb_t_new,
+                            e_f_new-mN*nb_f_new));
+   if (energy_balance >= 0 &&
+       _Q_p[0] + (flux_p[0]+flux_pf[0])*taup >= 0 &&
        _Q_t[0] + (flux_t[0]+flux_tf[0])*taut >= 0 &&
        _Q_f[0] + (-flux_pf[0]-flux_tf[0]+flux_f[0])*tauf >= 0) {
     c_p->addFlux((flux_p[0]+flux_pf[0])*taup, (flux_p[1]+flux_pf[1])*taup,
