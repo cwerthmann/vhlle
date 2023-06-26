@@ -147,8 +147,10 @@ void MultiHydro::performStep()
 
 void MultiHydro::frictionSubstep()
 {
+   int NLimitedFriction=0;
  // here it is assumed that projectile and target grids
  // have same dimensions and physical sizes
+
  for (int iy = 0; iy < f_p->getNY(); iy++)
   for (int iz = 0; iz < f_p->getNZ(); iz++)
    for (int ix = 0; ix < f_p->getNX(); ix++) {
@@ -225,7 +227,7 @@ void MultiHydro::frictionSubstep()
     upLV.Boost(-vxt, -vyt, -vzt);
     utLV.Boost(-vxp, -vyp, -vzp);
     for(int i=0; i<4; i++){
-     if (frictionModel == 1) {
+     if (frictionModel == 1||frictionModel==2) {
       // Ivanov's friction terms
       flux_p[i] += -theta*dens_p*dens_t*(D_P*(up[i] - ut[i]) + D_E*(up[i] + ut[i]))*h_p->getDtau();
       flux_t[i] += -theta*dens_p*dens_t*(D_P*(ut[i] - up[i]) + D_E*(up[i] + ut[i]))*h_p->getDtau();
@@ -291,21 +293,25 @@ void MultiHydro::frictionSubstep()
    c_p->getQ(_Q_p);
    c_t->getQ(_Q_t);
    c_f->getQ(_Q_f);
-   for(int i=0;i<4;i++){
-    Q_p_new[i]=_Q_p[i]+(flux_p[i]+flux_pf[i])*taup;
-    Q_t_new[i]=_Q_t[i]+(flux_t[i]+flux_tf[i])*taut;
-    Q_f_new[i]=_Q_f[i]+(flux_f[i]-flux_pf[i]-flux_tf[i])*tauf;
+   double minQ0factor=0.2, energy_balance=1.0;
+   if(frictionModel==1){
+    minQ0factor=0.0;
+    for(int i=0;i<4;i++){
+        Q_p_new[i]=_Q_p[i]+(flux_p[i]+flux_pf[i])*taup;
+        Q_t_new[i]=_Q_t[i]+(flux_t[i]+flux_tf[i])*taut;
+        Q_f_new[i]=_Q_f[i]+(flux_f[i]-flux_pf[i]-flux_tf[i])*tauf;
+    }
+    double e_p_new, e_t_new, e_f_new, nb_p_new, nb_t_new, nb_f_new, p_new, nq_new, ns_new, vx_new, vy_new, vz_new;
+    transformPV(eos,Q_p_new,e_p_new,p_new,nb_p_new,nq_new,ns_new,vx_new,vy_new,vz_new,false);
+    transformPV(eos,Q_t_new,e_t_new,p_new,nb_t_new,nq_new,ns_new,vx_new,vy_new,vz_new,false);
+    transformPV(eos,Q_f_new,e_f_new,p_new,nb_f_new,nq_new,ns_new,vx_new,vy_new,vz_new,false);
+    energy_balance=min(e_p_new-1.2*mN*nb_p_new,
+                            min(e_t_new-1.2*mN*nb_t_new,
+                            e_f_new-1.2*mN*nb_f_new));
    }
-   double e_p_new, e_t_new, e_f_new, nb_p_new, nb_t_new, nb_f_new, p_new, nq_new, ns_new, vx_new, vy_new, vz_new;
-   transformPV(eos,Q_p_new,e_p_new,p_new,nb_p_new,nq_new,ns_new,vx_new,vy_new,vz_new,false);
-   transformPV(eos,Q_t_new,e_t_new,p_new,nb_t_new,nq_new,ns_new,vx_new,vy_new,vz_new,false);
-   transformPV(eos,Q_f_new,e_f_new,p_new,nb_f_new,nq_new,ns_new,vx_new,vy_new,vz_new,false);
-   double energy_balance=min(e_p_new-mN*nb_p_new,
-                            min(e_t_new-mN*nb_t_new,
-                            e_f_new-mN*nb_f_new));
    if (energy_balance >= 0 &&
-       _Q_p[0] + (flux_p[0]+flux_pf[0])*taup >= 0 &&
-       _Q_t[0] + (flux_t[0]+flux_tf[0])*taut >= 0 &&
+       _Q_p[0] + (flux_p[0]+flux_pf[0])*taup >= minQ0factor*_Q_p[0] &&
+       _Q_t[0] + (flux_t[0]+flux_tf[0])*taut >= minQ0factor*_Q_t[0] &&
        _Q_f[0] + (-flux_pf[0]-flux_tf[0]+flux_f[0])*tauf >= 0) {
     c_p->addFlux((flux_p[0]+flux_pf[0])*taup, (flux_p[1]+flux_pf[1])*taup,
      (flux_p[2]+flux_pf[2])*taup, (flux_p[3]+flux_pf[3])*taup, 0., 0., 0.);
@@ -319,11 +325,14 @@ void MultiHydro::frictionSubstep()
     c_p->clearFlux();
     c_t->clearFlux();
     c_f->clearFlux();
+   } else {
+        NLimitedFriction++;
    }
    if(-flux_p[0]-flux_t[0] > 0. && c_f->getMaxM()<0.01)
     c_f->setAllM(1.0);
    } // end cell loop
  clearRetardedFriction();
+ cout << "friction drop rate " << 100.0*NLimitedFriction/f_p->getNX()/f_p->getNY()/f_p->getNZ() << "% ("<<NLimitedFriction<<" cells)"<<endl;
  if (decreasingFormTime == 1) {
   formationTime -= dtau * dtauf;
   if (formationTime < 0) formationTime = 0;
