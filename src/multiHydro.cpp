@@ -151,6 +151,7 @@ void MultiHydro::performStep()
 
 void MultiHydro::frictionSubstep()
 {
+ int NLimitedFriction=0;
  // here it is assumed that projectile and target grids
  // have same dimensions and physical sizes
  for (int iy = 0; iy < f_p->getNY(); iy++)
@@ -299,54 +300,20 @@ void MultiHydro::frictionSubstep()
     Q_t_new[4]=_Q_t[4]+(nbflux_t+nbflux_tf)*taut;
     Q_f_new[4]=_Q_f[4]+(nbflux_f-nbflux_pf-nbflux_tf)*tauf;
     double e_p_new, e_t_new, e_f_new, nb_p_new, nb_t_new, nb_f_new, p_new, nq_new, ns_new, vx_new, vy_new, vz_new;
-    //void transformPV(EoS *eos, double Q[7], double &e, double &p, double &nb, double &nq, double &ns, double &vx, double &vy, double &vz)
-    transformPV(eos,Q_p_new,e_p_new,p_new,nb_p_new,nq_new,ns_new,vx_new,vy_new,vz_new);
-    transformPV(eos,Q_t_new,e_t_new,p_new,nb_t_new,nq_new,ns_new,vx_new,vy_new,vz_new);
-    transformPV(eos,Q_f_new,e_f_new,p_new,nb_f_new,nq_new,ns_new,vx_new,vy_new,vz_new);
+    transformPV(eos,Q_p_new,e_p_new,p_new,nb_p_new,nq_new,ns_new,vx_new,vy_new,vz_new,false);
+    transformPV(eos,Q_t_new,e_t_new,p_new,nb_t_new,nq_new,ns_new,vx_new,vy_new,vz_new,false);
+    transformPV(eos,Q_f_new,e_f_new,p_new,nb_f_new,nq_new,ns_new,vx_new,vy_new,vz_new,false);
 
-   double friction_rel=max((nbp-nb_p_new)/nbp,
-                        max((nbt-nb_t_new)/nbt,
-                        max((nbf-nb_f_new)/nbf,
-                        max((ep-e_p_new-mN*nb_p_new)/(ep-mN*nb_p_new),
-                        max((et-e_t_new-mN*nb_t_new)/(et-mN*nb_t_new),
-                        (ef-e_f_new-mN*nb_f_new)/(ef-mN*nb_f_new))))));
-   double rescaling=pow(pow(friction_rel/MaxRelFriction,10.0)+1.0,-0.1);
-   for(int i=0;i<4;i++){
-    flux_f[i]*=rescaling;
-    flux_p[i]*=rescaling;
-    flux_t[i]*=rescaling;
-    flux_pf[i]*=rescaling;
-    flux_tf[i]*=rescaling;
-   }
-   nbflux_f*=rescaling;
-   nbflux_p*=rescaling;
-   nbflux_t*=rescaling;
-   nbflux_pf*=rescaling;
-   nbflux_tf*=rescaling;
-   if(rescaling<MaxRelFriction&&min(ep,et)>1e5){
-    cerr<<"unexpected rescaling by "<<rescaling<<" in cell " << ix <<", "<< iy <<", "<< iz << " at time "<<taup<<std::endl;
-    std::cerr << "current QpNb: "<<_Q_p[NB_] <<", QtNB: " << _Q_t[NB_] <<", QfNB: " << _Q_f[NB_]
-        <<", QpT: "<< _Q_p[T_] <<", QtT: " << _Q_t[T_] << ", QfT: "<< _Q_f[T_] <<std::endl;
-    std::cerr << "flux QpNB t: " << nbflux_p*taup << " f: " << nbflux_pf*taup
-        << ", flux QtNB p: " << nbflux_t*taut << " f: " << nbflux_tf*taut
-        << ", flux QpT t: " << flux_p[0]*taup << " f: " << flux_pf[0]*taup
-        << ", flux QtT p: " << flux_t[0]*taut << " f: " << flux_tf[0]*taut <<std::endl;
-    std::cerr << "resulting QpNB: " << _Q_p[NB_] + (nbflux_p+nbflux_pf)*taup
-        <<", QtNB: " << _Q_t[NB_] + (nbflux_t+nbflux_tf)*taup
-        <<", QfNB: " << _Q_f[NB_] + (nbflux_f-nbflux_tf-nbflux_pf)*tauf
-        <<", QpT: "<< _Q_p[T_] + (flux_p[0]+flux_pf[0])*taup
-        <<", QtT: " << _Q_t[T_] + (flux_t[0]+flux_tf[0])*taut
-        << ", QfT: "<< _Q_f[T_] + (-flux_pf[0]-flux_tf[0]+flux_f[0])*tauf<<std::endl;
-    std::cerr << "baryon mass minimum QpT: "<< mN*(_Q_p[NB_] + (nbflux_p+nbflux_pf)*taup)
-        << ", QtT: "<< mN*(_Q_t[NB_] + (nbflux_t+nbflux_tf)*taut)
-        << ", QfT: "<< mN*(_Q_f[NB_] + (nbflux_f-nbflux_tf-nbflux_pf)*tauf) <<std::endl;
-   }
-   if (_Q_p[NB_] + (nbflux_p+nbflux_pf)*taup >= 0 &&
+   double energy_balance=min(e_p_new-1.2*mN*nb_p_new,
+                            min(e_t_new-1.2*mN*nb_t_new,
+                            e_f_new-1.2*mN*nb_f_new));
+   if (energy_balance >= 0 &&
+       _Q_p[NB_] + (nbflux_p+nbflux_pf)*taup >= 0 &&
        _Q_t[NB_] + (nbflux_t+nbflux_tf)*taut >= 0 &&
        _Q_f[NB_] + (nbflux_f-nbflux_tf-nbflux_pf)*tauf >= 0 &&
-       _Q_p[T_] + (flux_p[0]+flux_pf[0])*taup >= mN*(_Q_p[NB_] + (nbflux_p+nbflux_pf)*taup) &&
-       _Q_t[T_] + (flux_t[0]+flux_tf[0])*taut >= mN*(_Q_t[NB_] + (nbflux_t+nbflux_tf)*taup) &&
-       _Q_f[T_] + (-flux_pf[0]-flux_tf[0]+flux_f[0])*tauf >= mN*(_Q_f[NB_]+(nbflux_f-nbflux_tf-nbflux_pf)*tauf)) {
+       _Q_p[T_] + (flux_p[0]+flux_pf[0])*taup >= 0 &&
+       _Q_t[T_] + (flux_t[0]+flux_tf[0])*taut >= 0 &&
+       _Q_f[T_] + (-flux_pf[0]-flux_tf[0]+flux_f[0])*tauf >= 0) {
     c_p->addFlux((flux_p[0]+flux_pf[0])*taup, (flux_p[1]+flux_pf[1])*taup,
      (flux_p[2]+flux_pf[2])*taup, (flux_p[3]+flux_pf[3])*taup,(nbflux_p+nbflux_pf)*taup, 0., 0.);
     c_t->addFlux((flux_t[0]+flux_tf[0])*taut, (flux_t[1]+flux_tf[1])*taut,
@@ -360,28 +327,13 @@ void MultiHydro::frictionSubstep()
     c_t->clearFlux();
     c_f->clearFlux();
    } else {
-    std::cerr << "friction too large for cell " << ix <<", "<< iy <<", "<< iz << " at time "<<taup<<std::endl;
-    std::cerr << "current QpNb: "<<_Q_p[NB_] <<", QtNB: " << _Q_t[NB_] <<", QfNB: " << _Q_f[NB_]
-        <<", QpT: "<< _Q_p[T_] <<", QtT: " << _Q_t[T_] << ", QfT: "<< _Q_f[T_] <<std::endl;
-    std::cerr << "flux QpNB t: " << nbflux_p*taup << " f: " << nbflux_pf*taup
-        << ", flux QtNB p: " << nbflux_t*taut << " f: " << nbflux_tf*taut
-        << ", flux QpT t: " << flux_p[0]*taup << " f: " << flux_pf[0]*taup
-        << ", flux QtT p: " << flux_t[0]*taut << " f: " << flux_tf[0]*taut <<std::endl;
-    std::cerr << "resulting QpNB: " << _Q_p[NB_] + (nbflux_p+nbflux_pf)*taup
-        <<", QtNB: " << _Q_t[NB_] + (nbflux_t+nbflux_tf)*taup
-        <<", QfNB: " << _Q_f[NB_] + (nbflux_f-nbflux_tf-nbflux_pf)*tauf
-        <<", QpT: "<< _Q_p[T_] + (flux_p[0]+flux_pf[0])*taup
-        <<", QtT: " << _Q_t[T_] + (flux_t[0]+flux_tf[0])*taut
-        << ", QfT: "<< _Q_f[T_] + (-flux_pf[0]-flux_tf[0]+flux_f[0])*tauf<<std::endl;
-    std::cerr << "baryon mass minimum QpT: "<< mN*(_Q_p[NB_] + (nbflux_p+nbflux_pf)*taup)
-        << ", QtT: "<< mN*(_Q_t[NB_] + (nbflux_t+nbflux_tf)*taut)
-        << ", QfT: "<< mN*(_Q_f[NB_] + (nbflux_f-nbflux_tf-nbflux_pf)*tauf) <<std::endl;
-
+        NLimitedFriction++;
    }
    if(-flux_p[0]-flux_t[0] > 0. && c_f->getMaxM()<0.01)
     c_f->setAllM(1.0);
    } // end cell loop
  clearRetardedFriction();
+ cout << "friction drop rate " << 100.0*NLimitedFriction/f_p->getNX()/f_p->getNY()/f_p->getNZ() << "% ("<<NLimitedFriction<<" cells)"<<endl;
  if (decreasingFormTime == 1) {
   formationTime -= dtau * dtauf;
   if (formationTime < 0) formationTime = 0;

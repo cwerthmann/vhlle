@@ -5,6 +5,7 @@
 #include <cmath>
 #include <TGraph.h>
 #include "xsect.h"
+#include "inc.h"
 
 using namespace std;
 
@@ -56,7 +57,6 @@ CrossSections::CrossSections(void)
 // cross sections [fm^2] as a function of cm energy sqrt(s)
 void CrossSections::NN(double sqrts, double& sigmaNN)
 {
- const double mN = 0.939; // nucleon mass [GeV]
  if(sqrts<2*mN){ // catching numerical errors
   cout << "p-t friction: sqrt(s)<2m_N \n";
   exit(1);
@@ -99,9 +99,7 @@ void CrossSections::NN(double sqrts, double& sigmaNN)
 
 double CrossSections::piN(double sqrts)
 {
- double mN = 0.939;
- double mPi = 0.1396;
- if(sqrts<mN+mPi){ // catching numerical errors
+ if(sqrts<mN+mpi){ // catching numerical errors
   cout << "f-p/t friction: sqrt(s)<m_N+m_pi \n";
   exit(1);
  }

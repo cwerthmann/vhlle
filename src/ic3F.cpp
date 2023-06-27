@@ -36,7 +36,7 @@ IC3F::IC3F(Fluid *f_p, Fluid *f_t, int _nevents, double _snn, double _b_min, dou
  projZ = _projZ;
  targZ = _targZ;
 
- const double vcoll = sqrt(1-pow(2*nucleon_mass/snn, 2)); // velocity of the beam
+ const double vcoll = sqrt(1-pow(2*mN/snn, 2)); // velocity of the beam
  const double gamma = 1/sqrt(1 - vcoll * vcoll); // gamma factor of nuclei
  const double rap_beam = 0.5 * log((1 + vcoll) / (1-vcoll)); // beam rapidity
  const double Rproj = 1.1 * pow(projA, 0.333) - 0.656 * pow(projA, -0.333); // projectile nucleus radius
@@ -129,10 +129,10 @@ IC3F::IC3F(Fluid *f_p, Fluid *f_t, int _nevents, double _snn, double _b_min, dou
      double r_t = sqrt((x + b/2) * (x + b/2) + y * y + gamma * gamma * (z_t - z0_targ) * (z_t - z0_targ));
 
      // calculate energy-momentum tensor and charges in Cartesian frame at ix,iy,iz
-     double ep = 0.17 * nucleon_mass / (1 + exp((r_p - Rproj) / WSdelta));
-     double et = 0.17 * nucleon_mass / (1 + exp((r_t - Rtarg) / WSdelta));
-     double nbp = ep / nucleon_mass;
-     double nbt = et / nucleon_mass;
+     double ep = 0.17 * mN / (1 + exp((r_p - Rproj) / WSdelta));
+     double et = 0.17 * mN / (1 + exp((r_t - Rtarg) / WSdelta));
+     double nbp = ep / mN;
+     double nbt = et / mN;
      double nqp = nbp * projZ / projA;
      double nqt = nbt * targZ / targA;
      double pp = eos->p(ep, nbp, 0, nqp);
@@ -331,7 +331,6 @@ void IC3F::makeSmoothPart(double x, double y, double eta, int Charge, double rap
  int ixc = (int)round((x - xmin) / dx);
  int iyc = (int)round((y - ymin) / dy);
  int izc = (int)round((eta - zmin) / dz);
- double m = nucleon_mass;
  double norm_gauss = 0.0;
  for (int ix = ixc - nsmoothx; ix < ixc + nsmoothx + 1; ix++)
   for (int iy = iyc - nsmoothy; iy < iyc + nsmoothy + 1; iy++)
@@ -362,13 +361,13 @@ void IC3F::makeSmoothPart(double x, double y, double eta, int Charge, double rap
       weight = 0.0;
      }
      if (isProjectile) {
-      T00_p[ix][iy][iz] += weight * m * cosh(rap - eta + zdiff);
-      T0z_p[ix][iy][iz] += weight * m * sinh(rap - eta + zdiff);
+      T00_p[ix][iy][iz] += weight * mN * cosh(rap - eta + zdiff);
+      T0z_p[ix][iy][iz] += weight * mN * sinh(rap - eta + zdiff);
       QB_p[ix][iy][iz] += weight;
       QE_p[ix][iy][iz] += Charge * weight;
      } else {
-      T00_t[ix][iy][iz] += weight * m * cosh(rap - eta + zdiff);
-      T0z_t[ix][iy][iz] += weight * m * sinh(rap - eta + zdiff);
+      T00_t[ix][iy][iz] += weight * mN * cosh(rap - eta + zdiff);
+      T0z_t[ix][iy][iz] += weight * mN * sinh(rap - eta + zdiff);
       QB_t[ix][iy][iz] += weight;
       QE_t[ix][iy][iz] += Charge * weight;
      }

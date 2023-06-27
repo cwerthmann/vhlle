@@ -12,8 +12,6 @@ EfIntegrand::EfIntegrand(CrossSections *_xsect, double _Tf, double _valphatilde)
 }
 
 double EfIntegrand::Eval(double s){
-    double mN=0.939;
-    double mpi = 0.1396;
     double sigmaNpi=xsect-> piN(std::sqrt(s));
     double seff=s-mN*mN-mpi*mpi;
     double p0min=0.5*seff*gammaalphatilde/mN*(1.0-valphatilde*std::sqrt(1.0-4.0*mN*mN*mpi*mpi/seff/seff));
