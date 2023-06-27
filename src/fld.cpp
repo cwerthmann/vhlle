@@ -369,15 +369,17 @@ void Fluid::updateM(double tau, double dt) {
 }
 
 void Fluid::outputGnuplot(double tau) {
- double e, p, nb, nq, ns, t, mub, muq, mus, vx, vy, vz;
+ double e, p, nb, nq, ns, t, mub, muq, mus, vx, vy, vz,vzcart;
 
  // X direction
  for (int ix = 0; ix < nx; ix++) {
   double x = getX(ix);
   Cell *c = getCell(ix, ny / 2, nz / 2);
   getCMFvariables(c, tau, e, nb, nq, ns, vx, vy, vz);
+  vzcart=vz;
+  transformToLab(getZ(nz/2),vx,vy,vzcart);
   eos->eos(e, nb, nq, ns, t, mub, muq, mus, p);
-  fx << setw(14) << tau << setw(14) << x << setw(14) << vx << setw(14) << vy
+  fx << setw(14) << tau << setw(14) << x << setw(14) << vx << setw(14) << vy << setw(14) << vz << setw(14) << vzcart
         << setw(14) << e << setw(14) << nb << setw(14) << t << setw(14) << mub;
   fx << setw(14) << c->getpi(0, 0) << setw(14) << c->getpi(0, 1) << setw(14)
         << c->getpi(0, 2);
@@ -395,8 +397,10 @@ void Fluid::outputGnuplot(double tau) {
   double y = getY(iy);
   Cell *c = getCell(nx / 2, iy, nz / 2);
   getCMFvariables(c, tau, e, nb, nq, ns, vx, vy, vz);
+  vzcart=vz;
+  transformToLab(getZ(nz/2),vx,vy,vzcart);
   eos->eos(e, nb, nq, ns, t, mub, muq, mus, p);
-  fy << setw(14) << tau << setw(14) << y << setw(14) << vy << setw(14) << vx
+  fy << setw(14) << tau << setw(14) << y << setw(14) << vx << setw(14) << vy << setw(14) << vz << setw(14) << vzcart
         << setw(14) << e << setw(14) << nb << setw(14) << t << setw(14) << mub;
   fy << setw(14) << c->getpi(0, 0) << setw(14) << c->getpi(0, 1) << setw(14)
         << c->getpi(0, 2);
@@ -414,10 +418,11 @@ void Fluid::outputGnuplot(double tau) {
   double x = getY(ix);
   Cell *c = getCell(ix, ix, nz / 2);
   getCMFvariables(c, tau, e, nb, nq, ns, vx, vy, vz);
+  vzcart=vz;
+  transformToLab(getZ(nz/2),vx,vy,vzcart);
   eos->eos(e, nb, nq, ns, t, mub, muq, mus, p);
-  fdiag << setw(14) << tau << setw(14) << sqrt(2.) * x << setw(14) << vx
-           << setw(14) << vy << setw(14) << e << setw(14) << nb << setw(14) << t
-           << setw(14) << mub << endl;
+  fdiag << setw(14) << tau << setw(14) << sqrt(2.) * x << setw(14) << vx << setw(14) << vy << setw(14) << vz << setw(14) << vzcart
+           << setw(14) << e << setw(14) << nb << setw(14) << t << setw(14) << mub << endl;
   fdiag << setw(14) << c->getpi(0, 0) << setw(14) << c->getpi(0, 1)
            << setw(14) << c->getpi(0, 2);
   fdiag << setw(14) << c->getpi(0, 3) << setw(14) << c->getpi(1, 1)
@@ -434,8 +439,10 @@ void Fluid::outputGnuplot(double tau) {
   double z = getZ(iz);
   Cell *c = getCell(nx / 2, ny / 2, iz);
   getCMFvariables(getCell(nx / 2, ny / 2, iz), tau, e, nb, nq, ns, vx, vy, vz);
+  vzcart=vz;
+  transformToLab(getZ(nz/2),vx,vy,vzcart);
   eos->eos(e, nb, nq, ns, t, mub, muq, mus, p);
-  fz << setw(14) << tau << setw(14) << z << setw(14) << vz << setw(14) << vx
+  fz << setw(14) << tau << setw(14) << z << setw(14) << vx << setw(14) << vy << setw(14) << vz << setw(14) << vzcart
         << setw(14) << e << setw(14) << nb << setw(14) << t << setw(14) << mub;
   fz << setw(14) << c->getpi(0, 0) << setw(14) << c->getpi(0, 1) << setw(14)
         << c->getpi(0, 2);
