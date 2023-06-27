@@ -222,7 +222,7 @@ void MultiHydro::frictionSubstep()
     // friction coefficient
     double D_N = mN*Vrel*sigmaNN;
 
-    if (frictionModel == 1) {
+    if (frictionModel == 1||frictionModel==2) {
      for(int i=0; i<4; i++){
       // Csernai Tmunu friction terms
       flux_p[i] += -dens_p*dens_t*up[i]*D_N*h_p->getDtau();
@@ -255,34 +255,48 @@ void MultiHydro::frictionSubstep()
     double dens_p = xi_fa*pow(mN/sqrt(savg), 2)*nbp;
     double vptilde=std::sqrt(vfsq+vpsq+2.0*vfvp+vfvp*vfvp-vfsq*vpsq)/(1.0+vfvp);
     double gammaptilde=1.0/std::sqrt(1.0-vptilde);
-    EfIntegrand EfI(xsect,TCf,vptilde);
-    ROOT::Math::Functor1D func(&EfI,&EfIntegrand::Eval);
+    EfIntegrand EfI(xsect,TCf,mubCf,vptilde);
+    ROOT::Math::Functor1D func(&EfI,&EfIntegrand::EvalNpi);
     ROOT::Math::GaussIntegrator GI;
     GI.SetFunction(func);
     GI.SetRelTolerance(1e-5);
     double smin=pow(mN+mpi,2), smax=1e6;
-    double Ef=GI.Integral(smin,smax);
-    for(int i=0; i<4; i++){
-     flux_pf[i] += -M_PI*dens_p/vptilde/gammaptilde/mN*up[i]*Ef*h_p->getDtau();
+    double EfNpi=GI.Integral(smin,smax);
+    double EfNN=0.0;
+    if(frictionModel==2){
+        ROOT::Math::Functor1D func2(&EfI,&EfIntegrand::EvalNN);
+        GI.SetFunction(func2);
+        smin=pow(mN+mN,2);
+        EfNN=GI.Integral(smin,smax);
     }
-    nbflux_pf += -M_PI*dens_p/vptilde/gammaptilde/mN/mN*Ef*h_p->getDtau();
+    for(int i=0; i<4; i++){
+     flux_pf[i] += -M_PI*dens_p/vptilde/gammaptilde/mN*up[i]*(EfNpi+EfNN)*h_p->getDtau();
+    }
+    nbflux_pf += -M_PI*dens_p/vptilde/gammaptilde/mN/mN*(EfNpi+EfNN)*h_p->getDtau();
    }
    // 3. target-fireball friction
    if(et>0. && ef>0.) {
     double dens_t = xi_fa*pow(mN/sqrt(savg), 2)*nbt;
     double vttilde=std::sqrt(vfsq+vtsq+2.0*vfvt+vfvt*vfvt-vfsq*vtsq)/(1.0+vfvt);
     double gammattilde=1.0/std::sqrt(1.0-vttilde);
-    EfIntegrand EfI(xsect,TCf,vttilde);
-    ROOT::Math::Functor1D func(&EfI,&EfIntegrand::Eval);
+    EfIntegrand EfI(xsect,TCf,mubCf,vttilde);
+    ROOT::Math::Functor1D func(&EfI,&EfIntegrand::EvalNpi);
     ROOT::Math::GaussIntegrator GI;
     GI.SetFunction(func);
     GI.SetRelTolerance(1e-5);
     double smin=pow(mN+mpi,2), smax=1e6;
-    double Ef=GI.Integral(smin,smax);
-    for(int i=0; i<4; i++){
-     flux_pf[i] += -M_PI*dens_t/vttilde/gammattilde/mN*ut[i]*Ef*h_p->getDtau();
+    double EfNpi=GI.Integral(smin,smax);
+    double EfNN=0.0;
+    if(frictionModel==2){
+        ROOT::Math::Functor1D func2(&EfI,&EfIntegrand::EvalNN);
+        GI.SetFunction(func2);
+        smin=pow(mN+mN,2);
+        EfNN=GI.Integral(smin,smax);
     }
-    nbflux_pf += -M_PI*dens_t/vttilde/gammattilde/mN/mN*Ef*h_p->getDtau();
+    for(int i=0; i<4; i++){
+     flux_pf[i] += -M_PI*dens_t/vttilde/gammattilde/mN*ut[i]*(EfNpi+EfNN)*h_p->getDtau();
+    }
+    nbflux_pf += -M_PI*dens_t/vttilde/gammattilde/mN/mN*(EfNpi+EfNN)*h_p->getDtau();
    }
    double taup = h_p->getTau();
    double taut = h_t->getTau();
@@ -308,9 +322,6 @@ void MultiHydro::frictionSubstep()
                             min(e_t_new-1.2*mN*nb_t_new,
                             e_f_new-1.2*mN*nb_f_new));
    if (energy_balance >= 0 &&
-       _Q_p[NB_] + (nbflux_p+nbflux_pf)*taup >= 0 &&
-       _Q_t[NB_] + (nbflux_t+nbflux_tf)*taut >= 0 &&
-       _Q_f[NB_] + (nbflux_f-nbflux_tf-nbflux_pf)*tauf >= 0 &&
        _Q_p[T_] + (flux_p[0]+flux_pf[0])*taup >= 0 &&
        _Q_t[T_] + (flux_t[0]+flux_tf[0])*taut >= 0 &&
        _Q_f[T_] + (-flux_pf[0]-flux_tf[0]+flux_f[0])*tauf >= 0) {
