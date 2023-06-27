@@ -129,15 +129,21 @@ void MultiHydro::setFluids(Fluid *_f_p, Fluid *_f_t, Fluid *_f_f, Hydro *_h_p,
 }
 
 void MultiHydro::initOutput(const char *dir) {
- string outfreeze_p = dir, outfreeze_f = dir, outfreeze_t = dir, outfreeze_all = dir;
+ string outfreeze_p = dir, outfreeze_f = dir, outfreeze_t = dir, outfreeze_all = dir, outfricx=dir, outfricy=dir, outfricz=dir;
  outfreeze_p.append("/freezeout_p.dat");
  outfreeze_t.append("/freezeout_t.dat");
  outfreeze_f.append("/freezeout_f.dat");
  outfreeze_all.append("/freezeout_all.dat");
+ outfricx.append("/fricx.dat");
+ outfricy.append("/fricy.dat");
+ outfricz.append("/fricz.dat");
  fmhfreeze_p.open(outfreeze_p.c_str());
  fmhfreeze_t.open(outfreeze_t.c_str());
  fmhfreeze_f.open(outfreeze_f.c_str());
  fmhfreeze_all.open(outfreeze_all.c_str());
+ ffricx.open(outfricx.c_str());
+ ffricy.open(outfricy.c_str());
+ ffricz.open(outfricz.c_str());
 }
 
 void MultiHydro::performStep()
@@ -318,9 +324,9 @@ void MultiHydro::frictionSubstep()
     transformPV(eos,Q_t_new,e_t_new,p_new,nb_t_new,nq_new,ns_new,vx_new,vy_new,vz_new,false);
     transformPV(eos,Q_f_new,e_f_new,p_new,nb_f_new,nq_new,ns_new,vx_new,vy_new,vz_new,false);
 
-   double energy_balance=min(e_p_new-1.2*mN*nb_p_new,
-                            min(e_t_new-1.2*mN*nb_t_new,
-                            e_f_new-1.2*mN*nb_f_new));
+   double energy_balance=min(e_p_new-1.0*mN*nb_p_new,
+                            min(e_t_new-1.0*mN*nb_t_new,
+                            e_f_new-1.0*mN*nb_f_new));
    if (energy_balance >= 0 &&
        _Q_p[T_] + (flux_p[0]+flux_pf[0])*taup >= 0 &&
        _Q_t[T_] + (flux_t[0]+flux_tf[0])*taut >= 0 &&
@@ -339,10 +345,53 @@ void MultiHydro::frictionSubstep()
     c_f->clearFlux();
    } else {
         NLimitedFriction++;
+        for(int i=0;i<4;i++){
+            flux_f[i]=0;
+            flux_p[i]=0;
+            flux_t[i]=0;
+            flux_pf[i]=0;
+            flux_tf[i]=0;
+        }
+        nbflux_f=0;
+        nbflux_p=0;
+        nbflux_t=0;
+        nbflux_pf=0;
+        nbflux_tf=0;
+   }
+   //friction output
+   //X direction
+   if(iy==ny/2&&iz==nz/2){
+    double x=f_f->getX(ix);
+    ffricx << setw(14) << tauf << setw(14) << x;
+    for(int i=0;i<4;i++){
+        ffricx << setw(14) << flux_p[i] << setw(14) << flux_t[i] << setw(14) << flux_pf[i] << setw(14) << flux_tf[i];
+    }
+    ffricx << setw(14) << nbflux_p << setw(14) << nbflux_t << setw(14) << nbflux_pf << setw(14) << nbflux_tf << endl;
+   }
+    //Y direction
+   if(ix==nx/2&&iz==nz/2){
+    double y=f_f->getY(iy);
+    ffricy << setw(14) << tauf << setw(14) << y;
+    for(int i=0;i<4;i++){
+        ffricy << setw(14) << flux_p[i] << setw(14) << flux_t[i] << setw(14) << flux_pf[i] << setw(14) << flux_tf[i];
+    }
+    ffricy << setw(14) << nbflux_p << setw(14) << nbflux_t << setw(14) << nbflux_pf << setw(14) << nbflux_tf << endl;
+   }
+    //Z direction
+   if(iy==ny/2&&ix==nx/2){
+    double z=f_f->getZ(iz);
+    ffricz << setw(14) << tauf << setw(14) << z;
+    for(int i=0;i<4;i++){
+        ffricz << setw(14) << flux_p[i] << setw(14) << flux_t[i] << setw(14) << flux_pf[i] << setw(14) << flux_tf[i];
+    }
+    ffricz << setw(14) << nbflux_p << setw(14) << nbflux_t << setw(14) << nbflux_pf << setw(14) << nbflux_tf << endl;
    }
    if(-flux_p[0]-flux_t[0] > 0. && c_f->getMaxM()<0.01)
     c_f->setAllM(1.0);
    } // end cell loop
+   ffricx << endl;
+   ffricy << endl;
+   ffricz << endl;
  clearRetardedFriction();
  cout << "friction drop rate " << 100.0*NLimitedFriction/f_p->getNX()/f_p->getNY()/f_p->getNZ() << "% ("<<NLimitedFriction<<" cells)"<<endl;
  if (decreasingFormTime == 1) {
