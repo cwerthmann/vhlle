@@ -303,9 +303,9 @@ void MultiHydro::frictionSubstep()
    if(frictionModel==1){
     minQ0factor=0.0;
     for(int i=0;i<4;i++){
-        Q_p_new[i]=_Q_p[i]+(flux_p[i]+flux_pf[i])*taup;
-        Q_t_new[i]=_Q_t[i]+(flux_t[i]+flux_tf[i])*taut;
-        Q_f_new[i]=_Q_f[i]+(flux_f[i]-flux_pf[i]-flux_tf[i])*tauf;
+        Q_p_new[i]=_Q_p[i]/taup+(flux_p[i]+flux_pf[i]);
+        Q_t_new[i]=_Q_t[i]/taut+(flux_t[i]+flux_tf[i]);
+        Q_f_new[i]=_Q_f[i]/tauf+(flux_f[i]-flux_pf[i]-flux_tf[i]);
     }
     double e_p_new, e_t_new, e_f_new, nb_p_new, nb_t_new, nb_f_new, p_new, nq_new, ns_new, vx_new, vy_new, vz_new;
     transformPV(eos,Q_p_new,e_p_new,p_new,nb_p_new,nq_new,ns_new,vx_new,vy_new,vz_new,false);
