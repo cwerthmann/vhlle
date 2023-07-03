@@ -380,7 +380,7 @@ void Fluid::outputGnuplot(double tau) {
   transformToLab(getZ(nz/2),vxcart,vycart,vzcart);
   eos->eos(e, nb, nq, ns, t, mub, muq, mus, p);
   fx << setw(14) << tau << setw(14) << x << setw(14) << vx << setw(14) << vy << setw(14) << vz << setw(14) << vzcart
-           << setw(14) << e << setw(14) << nb << setw(14) << nq<< setw(14) << ns << setw(14) << t << setw(14) << p << setw(14) << mub << setw(14) << muq << setw(14) << mus << endl;
+           << setw(14) << e << setw(14) << nb << setw(14) << nq<< setw(14) << ns << setw(14) << t << setw(14) << p << setw(14) << mub << setw(14) << muq << setw(14) << mus;
   fx << setw(14) << c->getpi(0, 0) << setw(14) << c->getpi(0, 1) << setw(14)
         << c->getpi(0, 2);
   fx << setw(14) << c->getpi(0, 3) << setw(14) << c->getpi(1, 1) << setw(14)
@@ -401,7 +401,7 @@ void Fluid::outputGnuplot(double tau) {
   transformToLab(getZ(nz/2),vxcart,vycart,vzcart);
   eos->eos(e, nb, nq, ns, t, mub, muq, mus, p);
   fy << setw(14) << tau << setw(14) << y << setw(14) << vx << setw(14) << vy << setw(14) << vz << setw(14) << vzcart
-           << setw(14) << e << setw(14) << nb << setw(14) << nq<< setw(14) << ns << setw(14) << t << setw(14) << p << setw(14) << mub << setw(14) << muq << setw(14) << mus << endl;
+           << setw(14) << e << setw(14) << nb << setw(14) << nq<< setw(14) << ns << setw(14) << t << setw(14) << p << setw(14) << mub << setw(14) << muq << setw(14) << mus;
   fy << setw(14) << c->getpi(0, 0) << setw(14) << c->getpi(0, 1) << setw(14)
         << c->getpi(0, 2);
   fy << setw(14) << c->getpi(0, 3) << setw(14) << c->getpi(1, 1) << setw(14)
@@ -422,7 +422,7 @@ void Fluid::outputGnuplot(double tau) {
   transformToLab(getZ(nz/2),vxcart,vycart,vzcart);
   eos->eos(e, nb, nq, ns, t, mub, muq, mus, p);
   fdiag << setw(14) << tau << setw(14) << sqrt(2.) * x << setw(14) << vx << setw(14) << vy << setw(14) << vz << setw(14) << vzcart
-           << setw(14) << e << setw(14) << nb << setw(14) << nq<< setw(14) << ns << setw(14) << t << setw(14) << p << setw(14) << mub << setw(14) << muq << setw(14) << mus << endl;
+           << setw(14) << e << setw(14) << nb << setw(14) << nq<< setw(14) << ns << setw(14) << t << setw(14) << p << setw(14) << mub << setw(14) << muq << setw(14) << mus;
   fdiag << setw(14) << c->getpi(0, 0) << setw(14) << c->getpi(0, 1)
            << setw(14) << c->getpi(0, 2);
   fdiag << setw(14) << c->getpi(0, 3) << setw(14) << c->getpi(1, 1)
@@ -443,7 +443,7 @@ void Fluid::outputGnuplot(double tau) {
   transformToLab(getZ(iz),vxcart,vycart,vzcart);
   eos->eos(e, nb, nq, ns, t, mub, muq, mus, p);
   fz << setw(14) << tau << setw(14) << z << setw(14) << vx << setw(14) << vy << setw(14) << vz << setw(14) << vzcart
-           << setw(14) << e << setw(14) << nb << setw(14) << nq<< setw(14) << ns << setw(14) << t << setw(14) << p << setw(14) << mub << setw(14) << muq << setw(14) << mus << endl;
+           << setw(14) << e << setw(14) << nb << setw(14) << nq<< setw(14) << ns << setw(14) << t << setw(14) << p << setw(14) << mub << setw(14) << muq << setw(14) << mus;
   fz << setw(14) << c->getpi(0, 0) << setw(14) << c->getpi(0, 1) << setw(14)
         << c->getpi(0, 2);
   fz << setw(14) << c->getpi(0, 3) << setw(14) << c->getpi(1, 1) << setw(14)
