@@ -158,20 +158,29 @@ void MultiHydro::performStep()
 void MultiHydro::frictionSubstep()
 {
  int NLimitedFriction=0;
+ int NPartiallyLimitedFriction=0;
+ int NSkip=0;
  // here it is assumed that projectile and target grids
  // have same dimensions and physical sizes
  for (int iy = 0; iy < f_p->getNY(); iy++)
   for (int iz = 0; iz < f_p->getNZ(); iz++)
    for (int ix = 0; ix < f_p->getNX(); ix++) {
+    double flux_p [4] = {0.}, flux_t [4] = {0.}, flux_f [4] = {0.},
+           flux_pf [4] = {0.}, flux_tf [4] = {0.},
+           nbflux_p=0.0, nbflux_t=0.0, nbflux_f=0.0, nbflux_pf=0.0, nbflux_tf=0.0;
     Cell *c_p = f_p->getCell(ix, iy, iz);
     Cell *c_t = f_t->getCell(ix, iy, iz);
     Cell *c_f = f_f->getCell(ix, iy, iz);
     double ep, pp, nbp, nqp, nsp, vxp, vyp, vzp;
     double et, pt, nbt, nqt, nst, vxt, vyt, vzt;
     double ef, pf, nbf, nqf, nsf, vxf, vyf, vzf;
-    c_p->getPrimVar(eos, h_p->getTau(), ep, pp, nbp, nqp, nsp, vxp, vyp, vzp);
-    c_t->getPrimVar(eos, h_t->getTau(), et, pt, nbt, nqt, nst, vxt, vyt, vzt);
-    c_f->getPrimVar(eos, h_f->getTau(), ef, pf, nbf, nqf, nsf, vxf, vyf, vzf);
+    double taup = h_p->getTau();
+    double taut = h_t->getTau();
+    double tauf = h_f->getTau();
+    c_p->getPrimVar(eos, taup, ep, pp, nbp, nqp, nsp, vxp, vyp, vzp);
+    c_t->getPrimVar(eos, taut, et, pt, nbt, nqt, nst, vxt, vyt, vzt);
+    c_f->getPrimVar(eos, tauf, ef, pf, nbf, nqf, nsf, vxf, vyf, vzf);
+    if(ep>=1e-10&&et>=1e-10){
     double TCp, mubCp, muqCp, musCp, pCp;
     double TCt, mubCt, muqCt, musCt, pCt;
     double TCf, mubCf, muqCf, musCf, pCf;
@@ -192,9 +201,7 @@ void MultiHydro::frictionSubstep()
     double vtsq=vxt*vxt+vyt*vyt+vzt*vzt;
     double vfvp=vxf*vxp+vyf*vyp+vzf*vzp;
     double vfvt=vxf*vxt+vyf*vyt+vzf*vzt;
-    double flux_p [4] = {0.}, flux_t [4] = {0.}, flux_f [4] = {0.},
-           flux_pf [4] = {0.}, flux_tf [4] = {0.},
-           nbflux_p=0.0, nbflux_t=0.0, nbflux_f=0.0, nbflux_pf=0.0, nbflux_tf=0.0;
+
     double uput = gammap*gammat*(1.0 - vxp*vxt - vyp*vyt - vzp*vzt);
     double savg = 2.0*mN*mN*(1.0 + uput);
 
@@ -304,9 +311,6 @@ void MultiHydro::frictionSubstep()
     }
     nbflux_tf += -M_PI*dens_t/vttilde/gammattilde/mN/mN*(EfNpi+EfNN)*h_p->getDtau();
    }
-   double taup = h_p->getTau();
-   double taut = h_t->getTau();
-   double tauf = h_f->getTau();
    double _Q_p[7], _Q_t[7], _Q_f[7], Q_p_new[7]={0}, Q_t_new[7]={0}, Q_f_new[7]={0};
    c_p->getQ(_Q_p);
    c_t->getQ(_Q_t);
@@ -345,6 +349,32 @@ void MultiHydro::frictionSubstep()
        if(_Q_p[T_] + (flux_p[0]+flux_pf[0])*taup >= 0 &&
        _Q_t[T_] + (flux_t[0]+flux_tf[0])*taut >= 0 &&
        _Q_f[T_] + (-flux_pf[0]-flux_tf[0]+flux_f[0])*tauf >= 0) {
+       if(e_p_new<1e-100||e_t_new<1e-100){
+        if(e_p_new<1e-100){
+         for(int i=0;i<4;i++){
+          flux_f[i]=-flux_t[i];
+          flux_p[i]=0;
+          flux_pf[i]=0;
+         }
+          nbflux_f=-nbflux_t;
+          nbflux_p=0;
+          nbflux_pf=0;
+        }
+        if(e_t_new<1e-100){
+         for(int i=0;i<4;i++){
+          flux_f[i]=-flux_p[i];
+          flux_t[i]=0;
+          flux_tf[i]=0;
+         }
+          nbflux_f=-nbflux_p;
+          nbflux_t=0;
+          nbflux_tf=0;
+        }
+        if(e_p_new>=1e-100||e_t_new>=1e-100){
+         NPartiallyLimitedFriction++;
+        }
+        NLimitedFriction++;
+       }
     c_p->addFlux((flux_p[0]+flux_pf[0])*taup, (flux_p[1]+flux_pf[1])*taup,
      (flux_p[2]+flux_pf[2])*taup, (flux_p[3]+flux_pf[3])*taup,(nbflux_p+nbflux_pf)*taup, 0., 0.);
     c_t->addFlux((flux_t[0]+flux_tf[0])*taut, (flux_t[1]+flux_tf[1])*taut,
@@ -371,6 +401,9 @@ void MultiHydro::frictionSubstep()
         nbflux_t=0;
         nbflux_pf=0;
         nbflux_tf=0;
+   }
+   }else{
+    NSkip++;
    }
    //friction output
    //X direction
@@ -407,7 +440,9 @@ void MultiHydro::frictionSubstep()
    ffricy << endl;
    ffricz << endl;
  clearRetardedFriction();
- cout << "friction drop rate " << 100.0*NLimitedFriction/f_p->getNX()/f_p->getNY()/f_p->getNZ() << "% ("<<NLimitedFriction<<" cells)"<<endl;
+ cout << "skipped friction due to small energy density of target and projectile in "<< NSkip << " cells ("<< 100.0*NSkip/f_p->getNX()/f_p->getNY()/f_p->getNZ() << "%)"<<endl;
+ cout << "friction drop rate " << 100.0*NLimitedFriction/f_p->getNX()/f_p->getNY()/f_p->getNZ() << "% ("<<NLimitedFriction<<" cells), of which only partially dropped: "
+    << 100.0*NPartiallyLimitedFriction/f_p->getNX()/f_p->getNY()/f_p->getNZ() <<"% ("<<NPartiallyLimitedFriction<<" cells)"<<endl;
  if (decreasingFormTime == 1) {
   formationTime -= dtau * dtauf;
   if (formationTime < 0) formationTime = 0;
