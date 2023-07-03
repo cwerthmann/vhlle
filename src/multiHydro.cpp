@@ -300,9 +300,9 @@ void MultiHydro::frictionSubstep()
         EfNN=GI.Integral(smin,smax);
     }
     for(int i=0; i<4; i++){
-     flux_pf[i] += -M_PI*dens_t/vttilde/gammattilde/mN*ut[i]*(EfNpi+EfNN)*h_p->getDtau();
+     flux_tf[i] += -M_PI*dens_t/vttilde/gammattilde/mN*ut[i]*(EfNpi+EfNN)*h_p->getDtau();
     }
-    nbflux_pf += -M_PI*dens_t/vttilde/gammattilde/mN/mN*(EfNpi+EfNN)*h_p->getDtau();
+    nbflux_tf += -M_PI*dens_t/vttilde/gammattilde/mN/mN*(EfNpi+EfNN)*h_p->getDtau();
    }
    double taup = h_p->getTau();
    double taut = h_t->getTau();
@@ -311,24 +311,38 @@ void MultiHydro::frictionSubstep()
    c_p->getQ(_Q_p);
    c_t->getQ(_Q_t);
    c_f->getQ(_Q_f);
-   for(int i=0;i<4;i++){
-    Q_p_new[i]=_Q_p[i]+(flux_p[i]+flux_pf[i])*taup;
-    Q_t_new[i]=_Q_t[i]+(flux_t[i]+flux_tf[i])*taut;
-    Q_f_new[i]=_Q_f[i]+(flux_f[i]-flux_pf[i]-flux_tf[i])*tauf;
+   for(int i=0;i<7;i++){
+    Q_p_new[i]=_Q_p[i]/taup;
+    Q_t_new[i]=_Q_t[i]/taup;
+    Q_f_new[i]=_Q_f[i]/taup;
    }
-    Q_p_new[4]=_Q_p[4]+(nbflux_p+nbflux_pf)*taup;
-    Q_t_new[4]=_Q_t[4]+(nbflux_t+nbflux_tf)*taut;
-    Q_f_new[4]=_Q_f[4]+(nbflux_f-nbflux_pf-nbflux_tf)*tauf;
-    double e_p_new, e_t_new, e_f_new, nb_p_new, nb_t_new, nb_f_new, p_new, nq_new, ns_new, vx_new, vy_new, vz_new;
-    transformPV(eos,Q_p_new,e_p_new,p_new,nb_p_new,nq_new,ns_new,vx_new,vy_new,vz_new,false);
-    transformPV(eos,Q_t_new,e_t_new,p_new,nb_t_new,nq_new,ns_new,vx_new,vy_new,vz_new,false);
-    transformPV(eos,Q_f_new,e_f_new,p_new,nb_f_new,nq_new,ns_new,vx_new,vy_new,vz_new,false);
+   for(int i=0;i<4;i++){
+    Q_p_new[i]+=(flux_p[i]+flux_pf[i]);
+    Q_t_new[i]+=(flux_t[i]+flux_tf[i]);
+    Q_f_new[i]+=(flux_f[i]-flux_pf[i]-flux_tf[i]);
+   }
+    Q_p_new[4]+=(nbflux_p+nbflux_pf);
+    Q_t_new[4]+=(nbflux_t+nbflux_tf);
+    Q_f_new[4]+=(nbflux_f-nbflux_pf-nbflux_tf);
+    double e_p_new, e_t_new, e_f_new, nb_p_new, nb_t_new, nb_f_new, p_p_new, p_t_new, p_f_new, nq_new, ns_new, vx_new, vy_new, vz_new;
+    transformPV(eos,Q_p_new,e_p_new,p_p_new,nb_p_new,nq_new,ns_new,vx_new,vy_new,vz_new,false);
+    transformPV(eos,Q_t_new,e_t_new,p_t_new,nb_t_new,nq_new,ns_new,vx_new,vy_new,vz_new,false);
+    transformPV(eos,Q_f_new,e_f_new,p_f_new,nb_f_new,nq_new,ns_new,vx_new,vy_new,vz_new,false);
 
-   double energy_balance=min(e_p_new-1.0*mN*nb_p_new,
-                            min(e_t_new-1.0*mN*nb_t_new,
-                            e_f_new-1.0*mN*nb_f_new));
-   if (energy_balance >= 0 &&
-       _Q_p[T_] + (flux_p[0]+flux_pf[0])*taup >= 0 &&
+    /*if(ix==f_p->getNX()/2&&iy==f_p->getNY()/2&&abs(iz-f_p->getNZ()/2)<1){
+        cout << iz << setw(14) << ep << setw(14) << e_p_new << setw(14) <<nbp <<setw(14)<<nb_p_new<< setw(14) << ep/mN/nbp << setw(14) << e_p_new/mN/nb_p_new << setw(14) << pp <<setw(14) <<p_p_new<< endl;
+        cout << flux_p[0] << setw(14)<< flux_p[1] << setw(14)<< flux_p[2] << setw(14)<< flux_p[3] << setw(14) << nbflux_p << endl;
+        cout << up[0] << setw(14) << up[1] << setw(14) << up[2] <<setw(14)<<up[3]<<setw(14)<< 1/mN <<endl;
+        cout << _Q_p[0] << setw(14) << _Q_p[1] << setw(14) << _Q_p[2] << setw(14) << _Q_p[3] << setw(14) << _Q_p[NB_] << endl;
+        cout << taup*((ep+pp)*up[0]*up[0]-pp) << setw(14) << taup*((ep+pp)*up[0]*up[1]) << setw(14)<< taup*((ep+pp)*up[0]*up[2]) << setw(14)<< taup*((ep+pp)*up[0]*up[3]) << setw(14) << taup*gammap*nbp << endl;
+    }*/
+
+
+   double energy_balance=min(e_p_new-1.2*mN*nb_p_new,
+                            min(e_t_new-1.2*mN*nb_t_new,
+                            e_f_new-1.2*mN*nb_f_new));
+   //if (energy_balance >= 0 &&
+       if(_Q_p[T_] + (flux_p[0]+flux_pf[0])*taup >= 0 &&
        _Q_t[T_] + (flux_t[0]+flux_tf[0])*taut >= 0 &&
        _Q_f[T_] + (-flux_pf[0]-flux_tf[0]+flux_f[0])*tauf >= 0) {
     c_p->addFlux((flux_p[0]+flux_pf[0])*taup, (flux_p[1]+flux_pf[1])*taup,
