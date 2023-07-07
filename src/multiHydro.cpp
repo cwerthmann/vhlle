@@ -215,12 +215,14 @@ void MultiHydro::frictionSubstep()
     double ngluon_t = 16 * zeta3 * pow(TCt, 3) / pow(M_PI, 2);
     double dens_p, dens_t;
     //if (ep < 0.7) {
-     dens_p = xi_h*pow(2*mN/sqrt(savg), 0.5)*nbp;
+     //dens_p = xi_h*pow(2*mN/sqrt(savg), 0.5)*nbp;
+     dens_p = xi_h*nbp;
     /*} else {
      dens_p = xi_q*pow(2*mN/sqrt(s), 0.5)*(nquark_p+ngluon_p)/3;
     }*/
     //if (et < 0.7) {
-     dens_t = xi_h*pow(2*mN/sqrt(savg), 0.5)*nbt;
+     //dens_t = xi_h*pow(2*mN/sqrt(savg), 0.5)*nbt;
+     dens_t = xi_h*nbt;
     /*} else {
      dens_t = xi_q*pow(2*mN/sqrt(s), 0.5)*(nquark_t+ngluon_t)/3;
     }*/

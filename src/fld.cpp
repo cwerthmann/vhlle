@@ -369,17 +369,17 @@ void Fluid::updateM(double tau, double dt) {
 }
 
 void Fluid::outputGnuplot(double tau) {
- double e, p, nb, nq, ns, t, mub, muq, mus, vx, vy, vz,vzcart,vxcart,vycart;
+ double e, p, nb, nq, ns, t, mub, muq, mus, vx, vy, Y,vz;
 
  // X direction
  for (int ix = 0; ix < nx; ix++) {
   double x = getX(ix);
   Cell *c = getCell(ix, ny / 2, nz / 2);
-  getCMFvariables(c, tau, e, nb, nq, ns, vx, vy, vz);
-  vzcart=vz;
-  transformToLab(getZ(nz/2),vxcart,vycart,vzcart);
+  double eta = getZ(c->getZ());
+  c->getPrimVar(eos, tau, e, p, nb, nq, ns, vx, vy, vz);
+  Y = eta + 1. / 2. * log((1. + vz) / (1. - vz));
   eos->eos(e, nb, nq, ns, t, mub, muq, mus, p);
-  fx << setw(14) << tau << setw(14) << x << setw(14) << vx << setw(14) << vy << setw(14) << vz << setw(14) << vzcart
+  fx << setw(14) << tau << setw(14) << x << setw(14) << vx << setw(14) << vy << setw(14) << Y << setw(14) << vz
         << setw(14) << e << setw(14) << nb << setw(14) << nq << setw(14) << ns  << setw(14) << t << setw(14) << p  << setw(14) << mub << setw(14) << muq << setw(14) << mus;
   fx << setw(14) << c->getpi(0, 0) << setw(14) << c->getpi(0, 1) << setw(14)
         << c->getpi(0, 2);
@@ -396,11 +396,11 @@ void Fluid::outputGnuplot(double tau) {
  for (int iy = 0; iy < ny; iy++) {
   double y = getY(iy);
   Cell *c = getCell(nx / 2, iy, nz / 2);
-  getCMFvariables(c, tau, e, nb, nq, ns, vx, vy, vz);
-  vzcart=vz;
-  transformToLab(getZ(nz/2),vxcart,vycart,vzcart);
+  double eta = getZ(c->getZ());
+  c->getPrimVar(eos, tau, e, p, nb, nq, ns, vx, vy, vz);
+  Y = eta + 1. / 2. * log((1. + vz) / (1. - vz));
   eos->eos(e, nb, nq, ns, t, mub, muq, mus, p);
-  fy << setw(14) << tau << setw(14) << y << setw(14) << vx << setw(14) << vy << setw(14) << vz << setw(14) << vzcart
+  fy << setw(14) << tau << setw(14) << y << setw(14) << vx << setw(14) << vy << setw(14) << Y << setw(14) << vz
         << setw(14) << e << setw(14) << nb  << setw(14) << nq << setw(14) << ns << setw(14) << t << setw(14) << p  << setw(14) << mub << setw(14) << muq << setw(14) << mus;
   fy << setw(14) << c->getpi(0, 0) << setw(14) << c->getpi(0, 1) << setw(14)
         << c->getpi(0, 2);
@@ -417,11 +417,11 @@ void Fluid::outputGnuplot(double tau) {
  for (int ix = 0; ix < nx; ix++) {
   double x = getY(ix);
   Cell *c = getCell(ix, ix, nz / 2);
-  getCMFvariables(c, tau, e, nb, nq, ns, vx, vy, vz);
-  vzcart=vz;
-  transformToLab(getZ(nz/2),vxcart,vycart,vzcart);
+  double eta = getZ(c->getZ());
+  c->getPrimVar(eos, tau, e, p, nb, nq, ns, vx, vy, vz);
+  Y = eta + 1. / 2. * log((1. + vz) / (1. - vz));
   eos->eos(e, nb, nq, ns, t, mub, muq, mus, p);
-  fdiag << setw(14) << tau << setw(14) << sqrt(2.) * x << setw(14) << vx << setw(14) << vy << setw(14) << vz << setw(14) << vzcart
+  fdiag << setw(14) << tau << setw(14) << sqrt(2.) * x << setw(14) << vx << setw(14) << vy << setw(14) << Y << setw(14) << vz
            << setw(14) << e << setw(14) << nb << setw(14) << nq << setw(14) << ns  << setw(14) << t << setw(14) << p  << setw(14) << mub << setw(14) << muq << setw(14) << mus;
   fdiag << setw(14) << c->getpi(0, 0) << setw(14) << c->getpi(0, 1)
            << setw(14) << c->getpi(0, 2);
@@ -438,11 +438,11 @@ void Fluid::outputGnuplot(double tau) {
  for (int iz = 0; iz < nz; iz++) {
   double z = getZ(iz);
   Cell *c = getCell(nx / 2, ny / 2, iz);
-  getCMFvariables(getCell(nx / 2, ny / 2, iz), tau, e, nb, nq, ns, vx, vy, vz);
-  vzcart=vz;
-  transformToLab(getZ(iz),vx,vy,vzcart);
+  double eta = getZ(c->getZ());
+  c->getPrimVar(eos, tau, e, p, nb, nq, ns, vx, vy, vz);
+  Y = eta + 1. / 2. * log((1. + vz) / (1. - vz));
   eos->eos(e, nb, nq, ns, t, mub, muq, mus, p);
-  fz << setw(14) << tau << setw(14) << z << setw(14) << vx << setw(14) << vy << setw(14) << vz << setw(14) << vzcart
+  fz << setw(14) << tau << setw(14) << z << setw(14) << vx << setw(14) << vy << setw(14) << Y << setw(14) << vz
         << setw(14) << e << setw(14) << nb << setw(14) << nq << setw(14) << ns << setw(14) << t << setw(14) << p  << setw(14) << mub << setw(14) << muq << setw(14) << mus;
   fz << setw(14) << c->getpi(0, 0) << setw(14) << c->getpi(0, 1) << setw(14)
         << c->getpi(0, 2);
