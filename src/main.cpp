@@ -49,13 +49,13 @@ using namespace std;
 int nx = 121, ny = 121, nz = 161, nevents, eosType = 1, etaSparam = 0,zetaSparam = 0;
 int eosTypeHadron = 1;
 double xmin = -18.0, xmax = 18.0, ymin = -18.0, ymax = 18.0, etamin = -1.5, etamax = 1.5;
-double tau0 = 5.0, tauMax = 30.0, dtau = 0.05;
+double tau0 = 5.0, tauMax = 30.0, dtau = 0.05, dtau_adaptive=0.0;
 string collSystem, outputDir, isInputFile;
 double etaS, zetaS, eCrit = 0.5, eEtaSMin, al, ah, aRho, T0, etaSMin;
 int icModel,glauberVariable =1;  // icModel=1 for pure Glauber, 2 for table input (Glissando etc)
 double Rgt = 1.0, Rgz;
 double xi_fa = 0.15, lambda = 1.0, formationTime = 0.0, xi_q = 30.0, xi_h = 1.8;
-int frictionModel = 1, decreasingFormTime = 0;
+int frictionModel = 1, decreasingFormTime = 0, adaptiveTimestep=0;
 
 double snn, b_min, b_max;
 int projA, targA, projZ, targZ;
@@ -155,6 +155,8 @@ void readParameters(char *parFile) {
    frictionModel = atoi(parValue);
   else if (strcmp(parName, "decreasingFormTime") ==0)
    decreasingFormTime = atoi(parValue);
+  else if (strcmp(parName, "adaptiveTimestep") ==0)
+   adaptiveTimestep = atoi(parValue);
   else if (strcmp(parName, "etaSparam") == 0)
    etaSparam = atoi(parValue);
   else if (strcmp(parName, "aRho") == 0)
@@ -203,6 +205,7 @@ void printParameters() {
  cout << "tauMax = " << tauMax << endl;
  //cout << "tauGridResize = " << tauResize << endl;
  cout << "dtau = " << dtau << endl;
+ cout << "adaptiveTimestep = " << adaptiveTimestep << endl;
  cout << "e_crit = " << eCrit << endl;
  cout << "zeta/s param : " << zetaSparam << endl;
  cout << "etaSparam = " << etaSparam << endl;
@@ -329,9 +332,15 @@ int main(int argc, char **argv) {
  }
 
  // CFL criterion
+
+
  double dx = (xmax - xmin) / (nx - 1);
  double dy = (ymax - ymin) / (ny - 1);
  double deta = (etamax - etamin) / (nz - 1);
+
+ if(adaptiveTimestep==2){
+ cout << "test mode: not checking CFL criterion." << endl;
+ }else{
  cout << "Checking x-coordinate for CFL criterion:";
  if (dx > dtau && 0.1*dx < dtau) {
   cout << "OK" << endl;
@@ -350,15 +359,19 @@ int main(int argc, char **argv) {
   cout << "Not OK, resizing ny to " << ny << endl;
  }
 
- cout << "Checking eta-coordinate for CFL criterion:";
- if (deta*tau0 > dtau && 0.1*deta*tau0 < dtau) {
-  cout << "OK" << endl;
- } else {
-  nz = (int)(0.5*(etamax - etamin)*tau0 / dtau);
-  if (nz % 2 == 0) nz++;
-  cout << "Not OK, resizing nz to " << nz << endl;
+if(adaptiveTimestep==1){
+  cout<< "Not checking eta-coordinate for CFL criterion because of adaptive timestep.";
+ }else{
+  cout << "Checking eta-coordinate for CFL criterion:";
+  if (deta*tau0 > dtau && 0.1*deta*tau0 < dtau) {
+   cout << "OK" << endl;
+  } else {
+   nz = (int)(0.5*(etamax - etamin)*tau0 / dtau);
+   if (nz % 2 == 0) nz++;
+   cout << "Not OK, resizing nz to " << nz << endl;
+  }
  }
-
+}
 
 
 
@@ -444,6 +457,12 @@ int main(int argc, char **argv) {
  mh->getEnergyDensity();
 
  do {
+ if(adaptiveTimestep==1&&dtau_adaptive<dtau){
+    dtau_adaptive=min(0.5*h_p->getTau()*deta,dtau);
+    mh->setDtau(dtau_adaptive);
+  }
+
+
   mh->performStep();
   mh->evolveSpectators();
   f_p->outputGnuplot(h_p->getTau());
@@ -458,8 +477,12 @@ int main(int argc, char **argv) {
    mh->printSpectators(ffspect);
    return 0; // stop hydro evolution
   }
-  cout << "step done, tau=" << h_p->getTau() << endl;
-  if (0.1*f_p->getDz()*h_p->getTau() > h_p->getDtau()) {
+  cout << "step done, tau=" << h_p->getTau();
+  if(adaptiveTimestep==1){
+   cout<<", dtau="<<dtau_adaptive;
+  }
+  cout<< endl;
+  if (0.1*f_p->getDz()*h_p->getTau() > dtau&&adaptiveTimestep!=2) {
    cout << "grid resize" << endl;
    f_p = expandGrid2x(h_p, eos, eosH, trcoeff);
    f_t = expandGrid2x(h_t, eos, eosH, trcoeff);

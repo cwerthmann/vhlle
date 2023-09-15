@@ -36,6 +36,7 @@ public:
   double xi_fa, double lambda, double formationTime, int frictionModel, int decreasingFormTime,
   double xi_q, double xi_h, std::vector<std::vector<Nucleon>> nucl);
  ~MultiHydro(void);
+ void setDtau(double newdtau);
  void initOutput(const char *dir);
  void performStep();
  void frictionSubstep();

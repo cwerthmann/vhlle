@@ -83,6 +83,7 @@ MultiHydro::MultiHydro(Fluid *_f_p, Fluid *_f_t, Fluid *_f_f, Hydro *_h_p,
   }
  }
 
+
  /* Debug of scattering rates calculation
  double u[4] = {1, 0, 0, 0};
  for (double p = 0.1; p <= 2; p+=0.1) {
@@ -103,6 +104,17 @@ MultiHydro::~MultiHydro() {
  delete[] MHeps;
  delete[] MHepsPrev;
 }
+
+
+ void MultiHydro::setDtau(double newdtau){
+ h_p->setDtau(newdtau);
+ h_t->setDtau(newdtau);
+ h_f->setDtau(newdtau);
+
+ dtau=newdtau;
+}
+
+
 
 void MultiHydro::setFluids(Fluid *_f_p, Fluid *_f_t, Fluid *_f_f, Hydro *_h_p,
  Hydro *_h_t, Hydro *_h_f) {
