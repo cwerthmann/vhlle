@@ -112,6 +112,11 @@ MultiHydro::~MultiHydro() {
  h_f->setDtau(newdtau);
 
  dtau=newdtau;
+
+ double arrayDx[4] = {h_p->getDtau(), f_p->getDx(), f_p->getDy(), f_p->getDz()};
+ delete cornelius;
+ cornelius = new Cornelius;
+ cornelius->init(4, ecrit, arrayDx);
 }
 
 
