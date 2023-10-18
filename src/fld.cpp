@@ -161,6 +161,21 @@ void Fluid::initOutput(const char *dir, double tau0, char *suffix) {
  faniz << "#  tau  <<v_T>>  e_p  e'_p  (to compare with SongHeinz)\n";
 }
 
+
+void Fluid::inheritOutputStreams(Fluid& fld)
+{
+ fx.swap(fld.fx);
+ fy.swap(fld.fy);
+ fz.swap(fld.fz);
+ fdiag.swap(fld.fdiag);
+ f2d.swap(fld.f2d);
+ fxvisc.swap(fld.fxvisc);
+ fyvisc.swap(fld.fyvisc);
+ fdiagvisc.swap(fld.fdiagvisc);
+ faniz.swap(fld.faniz);
+ ffreeze.swap(fld.ffreeze);
+}
+
 void Fluid::correctImagCells(void) {
  double Q[7];
  // Z

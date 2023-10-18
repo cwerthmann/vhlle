@@ -56,6 +56,7 @@ int icModel,glauberVariable =1;  // icModel=1 for pure Glauber, 2 for table inpu
 double Rgt = 1.0, Rgz;
 double xi_fa = 0.15, lambda = 1.0, formationTime = 0.0, xi_q = 30.0, xi_h = 1.8;
 int frictionModel = 1, decreasingFormTime = 0, adaptiveTimestep=0;
+double tauResize = 100.0;  // grid resize effectively does not happen unless tauGridResize is set in the parameter file
 
 double snn, b_min, b_max;
 int projA, targA, projZ, targZ;
@@ -103,8 +104,8 @@ void readParameters(char *parFile) {
    tau0 = atof(parValue);
   else if (strcmp(parName, "tauMax") == 0)
    tauMax = atof(parValue);
-  /*else if (strcmp(parName, "tauGridResize") == 0)
-   tauResize = atof(parValue);*/
+  else if (strcmp(parName, "tauGridResize") == 0)
+   tauResize = atof(parValue);
   else if (strcmp(parName, "dtau") == 0)
    dtau = atof(parValue);
   else if (strcmp(parName, "e_crit") == 0)
@@ -203,7 +204,7 @@ void printParameters() {
  cout << "etamax = " << etamax << endl;
  cout << "tau0 = " << tau0 << endl;
  cout << "tauMax = " << tauMax << endl;
- //cout << "tauGridResize = " << tauResize << endl;
+ cout << "tauGridResize = " << tauResize << endl;
  cout << "dtau = " << dtau << endl;
  cout << "adaptiveTimestep = " << adaptiveTimestep << endl;
  cout << "e_crit = " << eCrit << endl;
@@ -277,7 +278,7 @@ Fluid* expandGrid2x(Hydro* h, EoS* eos, EoS* eosH, TransportCoeff *trcoeff) {
       2*(iy - f->getNY()/2) + f->getNY()/2, iz));
    }
  h->setFluid(fnew);  // now Hydro object operates on the new fluid
- h->setDtau(2.0*h->getDtau());
+ fnew->inheritOutputStreams(*f);
  delete f;
  return fnew;
 }
@@ -455,6 +456,7 @@ if(adaptiveTimestep==1){
  f_t->outputCorona(tau0);
  f_f->outputCorona(tau0);
  mh->getEnergyDensity();
+ bool resized = false;
 
  do {
  if(adaptiveTimestep==1&&dtau_adaptive<dtau){
@@ -482,12 +484,14 @@ if(adaptiveTimestep==1){
    cout<<", dtau="<<dtau_adaptive;
   }
   cout<< endl;
-  if (0.1*f_p->getDz()*h_p->getTau() > dtau&&adaptiveTimestep!=2) {
-   cout << "grid resize" << endl;
+  if (h_p->getTau()>tauResize && !resized) {
+   cout << "GRID RESIZE" << endl;
    f_p = expandGrid2x(h_p, eos, eosH, trcoeff);
    f_t = expandGrid2x(h_t, eos, eosH, trcoeff);
    f_f = expandGrid2x(h_f, eos, eosH, trcoeff);
    mh->setFluids(f_p, f_t, f_f, h_p, h_t, h_f);
+   mh->setDtau(2.0*h_p->getDtau());
+   resized = true;
   }
  } while(h_p->getTau() < tauMax+0.0001);
 

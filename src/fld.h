@@ -32,6 +32,7 @@ public:
        double _minz, double _maxz, double dt, double eCrit);
  ~Fluid();
  void initOutput(const char *dir, double tau0, char *suffix);
+ void inheritOutputStreams(Fluid& fld);
  int output_xy_spacing;
  int output_eta_points;
  int output_tau_spacing;

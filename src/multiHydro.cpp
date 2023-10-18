@@ -139,6 +139,7 @@ void MultiHydro::setFluids(Fluid *_f_p, Fluid *_f_t, Fluid *_f_f, Hydro *_h_p,
 
  //---- Cornelius init
  double arrayDx[4] = {h_p->getDtau(), f_p->getDx(), f_p->getDy(), f_p->getDz()};
+ delete cornelius;
  cornelius = new Cornelius;
  cornelius->init(4, ecrit, arrayDx);
 
@@ -707,21 +708,22 @@ void MultiHydro::outputEnergyDensity()
 
 void MultiHydro::resizeMHeps()
 {
- double temp[nx][ny][nz];
+ double* temp = new double [nx*ny*nz];
  for (int ix = 0; ix < nx; ix++)
   for (int iy = 0; iy < ny; iy++)
    for (int iz = 0; iz < nz; iz++) {
     if (2*(ix-(nx-1)/2)+(nx-1)/2 >= 0 && 2*(ix-(nx-1)/2)+(nx-1)/2 < nx && 2*(iy-(ny-1)/2)+(ny-1)/2 >=0 && 2*(iy-(ny-1)/2)+(ny-1)/2 < ny) {
-     temp[ix][iy][iz] = MHeps[2*(ix-(nx-1)/2)+(nx-1)/2][2*(iy-(ny-1)/2)+(ny-1)/2][iz];
+     temp[iz + nz*iy + nz*ny*ix] = MHeps[2*(ix-(nx-1)/2)+(nx-1)/2][2*(iy-(ny-1)/2)+(ny-1)/2][iz];
     } else {
-     temp[ix][iy][iz] = 0.;
+     temp[iz + nz*iy + nz*ny*ix] = 0.;
     }
    }
  for (int ix = 0; ix < nx; ix++)
   for (int iy = 0; iy < ny; iy++)
    for (int iz = 0; iz < nz; iz++) {
-    MHeps[ix][iy][iz] = temp[ix][iy][iz];
+    MHeps[ix][iy][iz] = temp[iz + nz*iy + nz*ny*ix];
    }
+ delete [] temp;
 }
 
 int MultiHydro::findFreezeout(EoS* eosH)
