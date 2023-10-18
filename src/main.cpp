@@ -454,9 +454,9 @@ if(adaptiveTimestep==1){
  f_t->initOutput(outputDir.c_str(), tau0, "targ");
  f_f->initOutput(outputDir.c_str(), tau0, "fire");
  mh->initOutput(outputDir.c_str());
- f_p->outputCorona(tau0);
- f_t->outputCorona(tau0);
- f_f->outputCorona(tau0);
+ //f_p->outputCorona(tau0);
+ //f_t->outputCorona(tau0);
+ //f_f->outputCorona(tau0);
  mh->getEnergyDensity();
  bool resized = false;
 
@@ -472,9 +472,9 @@ if(adaptiveTimestep==1){
   f_p->outputGnuplot(h_p->getTau());
   f_t->outputGnuplot(h_t->getTau());
   f_f->outputGnuplot(h_t->getTau());
-  f_p->outputSurface(h_p->getTau());
-  f_t->outputSurface(h_t->getTau());
-  f_f->outputSurface(h_f->getTau());
+  //f_p->outputSurface(h_p->getTau());
+  //f_t->outputSurface(h_t->getTau());
+  //f_f->outputSurface(h_f->getTau());
   int status = mh->findFreezeout(eosH);
   if(status==1) {
    ofstream ffspect ((outputDir+"/spectators.dat").c_str());

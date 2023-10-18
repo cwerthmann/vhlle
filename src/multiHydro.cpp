@@ -216,7 +216,7 @@ void MultiHydro::frictionSubstep()
     c_p->getPrimVar(eos, taup, ep, pp, nbp, nqp, nsp, vxp, vyp, vzp);
     c_t->getPrimVar(eos, taut, et, pt, nbt, nqt, nst, vxt, vyt, vzt);
     c_f->getPrimVar(eos, tauf, ef, pf, nbf, nqf, nsf, vxf, vyf, vzf);
-    if(ep>=1e-10||et>=1e-10){
+    if(ep>=1e-10 || et>=1e-10){
     double TCp, mubCp, muqCp, musCp, pCp;
     double TCt, mubCt, muqCt, musCt, pCt;
     double TCf, mubCf, muqCf, musCf, pCf;
@@ -1165,8 +1165,7 @@ int MultiHydro::findFreezeout(EoS* eosH)
  }
  delete[] ccube;
  if (nelements == 0 && h_p->getTau() > 5 + tau0)
-  //return 1;   // particlization surface ended - return 1 for the evolution to stop
-  return 0;
+  return 1;   // particlization surface ended - return 1 for the evolution to stop
  else
   return 0;   // return 0 for the evolution to continue
 }
