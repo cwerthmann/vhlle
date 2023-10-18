@@ -21,6 +21,7 @@
 #include <cstring>
 #include <ctime>
 #include <sstream>
+#include <omp.h>
 #include "fld.h"
 #include "hdo.h"
 #include "ic.h"
@@ -303,6 +304,7 @@ int main(int argc, char **argv) {
  time_t start = 0, end;
 
  time(&start);
+ //omp_set_num_threads(1);
 
  // read parameters from file
  readCommandLine(argc, argv);

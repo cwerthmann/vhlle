@@ -7,6 +7,7 @@
 #include <iomanip>
 #include <Math/Functor.h>
 #include <Math/GaussIntegrator.h>
+#include <omp.h>
 
 #include "multiHydro.h"
 #include "hdo.h"
@@ -166,10 +167,27 @@ void MultiHydro::initOutput(const char *dir) {
 
 void MultiHydro::performStep()
 {
+ cout << "entering performStep\n";
+ #pragma omp parallel
+ {
+ #pragma omp sections
+ {
+ #pragma omp section
+ {
  h_p->performStep();
+ }
+ #pragma omp section
+ {
  h_t->performStep();
+ }
+ #pragma omp section
+ {
  h_f->performStep();
+ }
+ } // end sections
+ } // end omp parallel
  frictionSubstep();
+ cout << "leaving performStep\n";
 }
 
 
