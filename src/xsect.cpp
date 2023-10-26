@@ -28,7 +28,6 @@ CrossSections::CrossSections(void)
   instream.seekg(0) ;
   instream.clear() ; // does not work with gcc 4.1 otherwise
   instream >> sqrtsm[i] >> sigpimp[i] >> plab;
-  sigpimp[i] = sigpimp[i] * 0.1; // converts [mb] -> [fm^2]
   i++;
  }
  cout << "pim-p cross section: " << i << " lines read.\n";
@@ -47,7 +46,6 @@ CrossSections::CrossSections(void)
   instream.seekg(0) ;
   instream.clear() ; // does not work with gcc 4.1 otherwise
   instream >> sqrtsp[i] >> sigpipp[i] >> plab;
-  sigpipp[i] = sigpipp[i] * 0.1; // converts [mb] -> [fm^2]
   i++;
  }
  cout << "pip-p cross section: " << i << " lines read.\n";
@@ -103,23 +101,24 @@ double CrossSections::piN(double sqrts)
   cout << "f-p/t friction: sqrt(s)<m_N+m_pi \n";
   exit(1);
  }
+ double xsect=0.0;
  double apip=6.74164804191884, bpip=1.91040774819671,
     cpip=22.8185019412713, apim=7.64349878021023, bpim=1.98522045695842, cpim=24.0705206942523,
     api2=0.574008225964179, bpi2=22.7230259927231, sigmapimp, sigmapipp;
  if (sqrts < 1.74) {
   sigmapimp=gSigmaPimp->Eval(sqrts);
   sigmapipp=gSigmaPipp->Eval(sqrts);
-  return 0.5*(sigmapimp+sigmapipp);
+  xsect=0.5*(sigmapimp+sigmapipp);
  }else if(sqrts<1.97){
   sigmapimp=apim*pow(std::log(sqrts)-bpim,2)+cpim;
   sigmapipp=gSigmaPipp->Eval(sqrts);
-  return 0.5*(sigmapimp+sigmapipp);
+  xsect=0.5*(sigmapimp+sigmapipp);
  }else if(sqrts<10.0){
   sigmapimp=apim*pow(std::log(sqrts)-bpim,2)+cpim;
   sigmapipp=apip*pow(std::log(sqrts)-bpip,2)+cpip;
-  return 0.5*(sigmapimp+sigmapipp);
+  xsect=0.5*(sigmapimp+sigmapipp);
  }else if(sqrts<1000.0){
-  return api2*std::log(sqrts)+bpi2;
+  xsect=api2*std::log(sqrts)+bpi2;
  }
- return 0.0;
+ return 0.1*xsect;  // converts [mb] -> [fm^2]
 }
