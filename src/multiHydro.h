@@ -15,12 +15,16 @@ class MultiHydro {
  Cornelius *cornelius;
  TransportCoeff *trcoeff;
  CrossSections *xsect;
- std::ofstream fmhfreeze_p, fmhfreeze_f, fmhfreeze_t, fmhfreeze_all, ffricx, ffricy, ffricz;
+ std::ofstream fmhfreeze_p, fmhfreeze_f, fmhfreeze_t, fmhfreeze_all, ffricx, ffricy, ffricz, EfIfile;
+ std::string EfIfilename;
  double ***MHeps, ***MHepsPrev;
+ double **EfITable;
+ int NTemp, Nvatilde,xsectparam;
+ double Tmax;
  std::vector<std::vector<double>> retardedFriction;
  double ecrit, vEff, vEff_p, vEff_t, vEff_f;
  int nx, ny, nz;
- double dx, dy, dz, dtau, tau0, sNN;
+ double dx, dy, dz, dtau, tau0, sNN, Etot, Q0min;
  double xi_fa, formationTime, lambda, xi_q, xi_h;
  int frictionModel, decreasingFormTime;
  double dtauf;
@@ -32,12 +36,13 @@ class MultiHydro {
 
 public:
  MultiHydro(Fluid *f_p, Fluid *f_t, Fluid *f_f, Hydro *h_p, Hydro *h_t,
-  Hydro* h_f, EoS *eos, TransportCoeff *trcoeff, double dtau, double eCrit, double sNN,
+  Hydro* h_f, EoS *eos, TransportCoeff *trcoeff, double dtau, double eCrit, double sNN, double Etot,
   double xi_fa, double lambda, double formationTime, int frictionModel, int decreasingFormTime,
-  double xi_q, double xi_h, std::vector<std::vector<Nucleon>> nucl);
+  double xi_q, double xi_h, int NTemp, int Nvatilde, double Tmax, int xsectparam, std::vector<std::vector<Nucleon>> nucl);
  ~MultiHydro(void);
  void setDtau(double newdtau);
  void initOutput(const char *dir);
+ double EfIeval(double Tf,double vatilde);
  void performStep();
  void frictionSubstep();
  void getEnergyMomentumTensor(double (&T)[4][4], double Q_p[7], double Q_f[7], double Q_t[7]);

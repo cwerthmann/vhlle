@@ -26,8 +26,8 @@ using namespace std;
 
 MultiHydro::MultiHydro(Fluid *_f_p, Fluid *_f_t, Fluid *_f_f, Hydro *_h_p,
  Hydro *_h_t, Hydro *_h_f, EoS *_eos, TransportCoeff *_trcoeff, double _dtau,
- double eCrit, double _sNN, double _xi_fa, double _lambda, double _formationTime,
- int _frictionModel, int _decreasingFormTime, double _xi_q, double _xi_h, std::vector<std::vector<Nucleon>> nucl)
+ double eCrit, double _sNN, double _Etot, double _xi_fa, double _lambda, double _formationTime,
+ int _frictionModel, int _decreasingFormTime, double _xi_q, double _xi_h, int _NTemp, int _Nvatilde, double _Tmax, int _xsectparam, std::vector<std::vector<Nucleon>> nucl)
 {
  f_p = _f_p;
  f_t = _f_t;
@@ -47,6 +47,7 @@ MultiHydro::MultiHydro(Fluid *_f_p, Fluid *_f_t, Fluid *_f_f, Hydro *_h_p,
  dtau = _dtau;
  tau0 = h_p->getTau();
  sNN = _sNN;
+ Etot = _Etot;
  xi_fa = _xi_fa;
  lambda = _lambda;
  formationTime = _formationTime;
@@ -55,6 +56,20 @@ MultiHydro::MultiHydro(Fluid *_f_p, Fluid *_f_t, Fluid *_f_f, Hydro *_h_p,
  xi_q = _xi_q;
  xi_h = _xi_h;
  dtauf = formationTime / 10.0;
+ NTemp=_NTemp;
+ Nvatilde=_Nvatilde;
+ Tmax=_Tmax;
+ xsectparam=_xsectparam;
+ EfIfilename="tables/EfItableNTemp";
+ EfIfilename.append(to_string(NTemp));
+ EfIfilename.append("Nvatilde");
+ EfIfilename.append(to_string(Nvatilde));
+ EfIfilename.append("Tmax");
+ EfIfilename.append(to_string(Tmax));
+ EfIfilename.append("xsectparam");
+ EfIfilename.append(to_string(xsectparam));
+ EfIfilename.append(".dat");
+
  nucleons = nucl;
 
  //---- Cornelius init
@@ -83,6 +98,75 @@ MultiHydro::MultiHydro(Fluid *_f_p, Fluid *_f_t, Fluid *_f_f, Hydro *_h_p,
   }
  }
 
+ Q0min=1e-6*Etot/(dx)/(dy)/(dz)/f_p->getNX()/f_p->getNY()/f_p->getNZ();
+ cout<<"min Q0 level: "<<Q0min<<endl;
+ ifstream EfIstream(EfIfilename);
+ if(!EfIstream.good()){
+  //compute table of fireball friction integrals if necessary
+  cout<<"Producing EfITable with filename "<< EfIfilename<<endl;
+  ofstream EfIoutstream;
+  EfIoutstream.open(EfIfilename);
+  EfIoutstream<<setprecision(15);
+
+  //double smin=pow(mN+mpi,2), smax;
+  double pmin=mpi, pmax;
+  ROOT::Math::GaussIntegrator GI;
+  GI.SetRelTolerance(1e-5);
+  double vatilde=0.0;
+  double gammaatilde=1.0;
+  double Tf=0.0;
+  double zeta3 = 1.20205690315959;
+
+  int progresslast=0;
+  int progress=0;
+
+  EfITable=new double*[Nvatilde];
+  for(int iv=0;iv<Nvatilde;iv++){
+   EfITable[iv]=new double[NTemp];
+   vatilde=1.0*iv/Nvatilde;
+   gammaatilde=1.0/sqrt(1.0-vatilde*vatilde);
+   for(int iT=0;iT<NTemp;iT++){
+    Tf=Tmax*iT/(NTemp-1);
+    EfIntegrand EfI(xsect,Tf,0.0,vatilde);
+    ROOT::Math::Functor1D func(&EfI,&EfIntegrand::EvalNpi);
+    GI.SetFunction(func);
+
+    //smax=20*mN*Tf/gammaatilde/(1-vatilde)+smin;
+    pmax=10*Tf+pmin;
+    EfITable[iv][iT]=GI.Integral(pmin,pmax);
+    double saa=mN*mN+mpi*mpi+2.0*mN*mpi*gammaatilde;
+    //EfITable[iv][iT]=3.0/12.0*Tf*Tf*mN*mpi*sqrt(gammaatilde-1)*xsect->piN(sqrt(saa))*gevtofm*gevtofm*gevtofm;//13
+    //EfITable[iv][iT]=3.0*zeta3*Tf*Tf*Tf/M_PI/M_PI*mN*sqrt(gammaatilde-1)*xsect->piN(sqrt(saa))*gevtofm*gevtofm*gevtofm;//11
+
+    EfIoutstream<<EfITable[iv][iT]<<endl;
+   }
+   progress=floor(100.0*iv/Nvatilde);
+   if(progress>progresslast){
+    progresslast=progress;
+    cout<<progresslast<<"% done"<<endl;
+   }
+  }
+  EfIoutstream.close();
+  cout<<"EfITable written and ready"<<endl;
+
+
+ }else{
+ //read table of fireball friction integrals
+ cout<<"Reading EfITable from file "<<EfIfilename<<endl;
+ string line;
+ EfITable=new double*[Nvatilde];
+ for(int iv=0;iv<Nvatilde;iv++){
+  EfITable[iv]=new double[NTemp];
+  for(int iT=0;iT<NTemp;iT++){
+  if(!getline(EfIstream,line)){
+    cout<<"Error reading EfITable on line "<<iv*NTemp+iT<<endl;
+    exit(1);
+  }
+  EfITable[iv][iT]=stod(line);
+  }
+ }
+  cout<<"EfITable ready"<<endl;
+ }
 
  /* Debug of scattering rates calculation
  double u[4] = {1, 0, 0, 0};
@@ -163,6 +247,31 @@ void MultiHydro::initOutput(const char *dir) {
  ffricz.open(outfricz.c_str());
 }
 
+double MultiHydro::EfIeval(double Tf, double vatilde){
+ int iT=floor((NTemp-1)*Tf/Tmax);
+ int iv=floor(Nvatilde*vatilde);
+ double lambdav=vatilde*Nvatilde-1.0*iv;
+ double lambdaT=Tf/Tmax*(NTemp-1)-1,0*iT;
+ if(iv>=Nvatilde-1&&iT>=NTemp-1){
+  return EfITable[Nvatilde-1][NTemp-1];
+ }
+ if(iv>=Nvatilde-1){
+  double low=EfITable[Nvatilde-1][iT];
+  double high=EfITable[Nvatilde-1][iT+1];
+  return lambdaT*high+(1.0-lambdaT)*low;
+ }
+ if(iT>=NTemp-1){
+  double low=EfITable[iv][NTemp-1];
+  double high=EfITable[iv+1][NTemp-1];
+  return lambdav*high+(1.0-lambdav)*low;
+ }
+ double lowlow=EfITable[iv][iT];
+ double lowhigh=EfITable[iv][iT+1];
+ double highlow=EfITable[iv+1][iT];
+ double highhigh=EfITable[iv+1][iT+1];
+ return lambdav*lambdaT*highhigh+lambdav*(1.0-lambdaT)*highlow+(1.0-lambdav)*lambdaT*lowhigh+(1.0-lambdav)*(1.0-lambdaT)*lowlow;
+}
+
 void MultiHydro::performStep()
 {
  h_p->performStep();
@@ -174,30 +283,45 @@ void MultiHydro::performStep()
 
 void MultiHydro::frictionSubstep()
 {
+ double mindtaufric=dtau;
  int NLimitedFriction=0;
- int NPartiallyLimitedFriction=0;
+ double ELimitedFriction=0.0;
+ double EtotFriction=0.0;
+ double EtotLimited=0.0;
  int NSkip=0;
+ int Nloop=0;
  // here it is assumed that projectile and target grids
  // have same dimensions and physical sizes
  for (int iy = 0; iy < f_p->getNY(); iy++)
   for (int iz = 0; iz < f_p->getNZ(); iz++)
    for (int ix = 0; ix < f_p->getNX(); ix++) {
+    double dtaufric;
+    double dtaufrictot=0.0;
+
+    while(dtaufrictot<dtau){
+    dtaufric=dtau-dtaufrictot;
     double flux_p [4] = {0.}, flux_t [4] = {0.}, flux_f [4] = {0.},
            flux_pf [4] = {0.}, flux_tf [4] = {0.},
            nbflux_p=0.0, nbflux_t=0.0, nbflux_f=0.0, nbflux_pf=0.0, nbflux_tf=0.0;
     Cell *c_p = f_p->getCell(ix, iy, iz);
     Cell *c_t = f_t->getCell(ix, iy, iz);
     Cell *c_f = f_f->getCell(ix, iy, iz);
+    double _Q_p[7], _Q_t[7], _Q_f[7], Q_p_new[7]={0}, Q_t_new[7]={0}, Q_f_new[7]={0};
+    c_p->getQ(_Q_p);
+    c_t->getQ(_Q_t);
+    c_f->getQ(_Q_f);
+
+
+    double taup = h_p->getTau()+dtaufrictot;
+    double taut = h_t->getTau()+dtaufrictot;
+    double tauf = h_f->getTau()+dtaufrictot;
     double ep, pp, nbp, nqp, nsp, vxp, vyp, vzp;
     double et, pt, nbt, nqt, nst, vxt, vyt, vzt;
     double ef, pf, nbf, nqf, nsf, vxf, vyf, vzf;
-    double taup = h_p->getTau();
-    double taut = h_t->getTau();
-    double tauf = h_f->getTau();
     c_p->getPrimVar(eos, taup, ep, pp, nbp, nqp, nsp, vxp, vyp, vzp);
     c_t->getPrimVar(eos, taut, et, pt, nbt, nqt, nst, vxt, vyt, vzt);
     c_f->getPrimVar(eos, tauf, ef, pf, nbf, nqf, nsf, vxf, vyf, vzf);
-    if(ep>=1e-10||et>=1e-10){
+    if(_Q_p[0]>Q0min||_Q_t[0]>Q0min){
     double TCp, mubCp, muqCp, musCp, pCp;
     double TCt, mubCt, muqCt, musCt, pCt;
     double TCf, mubCf, muqCf, musCf, pCf;
@@ -257,8 +381,8 @@ void MultiHydro::frictionSubstep()
     if (frictionModel == 1||frictionModel==2) {
      for(int i=0; i<4; i++){
       // Csernai Tmunu friction terms
-      flux_p[i] += -dens_p*dens_t*up[i]*D_N*h_p->getDtau();
-      flux_t[i] += -dens_p*dens_t*ut[i]*D_N*h_p->getDtau();
+      flux_p[i] += -dens_p*dens_t*up[i]*D_N;
+      flux_t[i] += -dens_p*dens_t*ut[i]*D_N;
 
       if (formationTime > 0) {
        addRetardedFriction((-flux_p[i]-flux_t[i])*f_p->getDx()*f_p->getDy()*f_p->getDz()*h_p->getTau(),
@@ -271,8 +395,8 @@ void MultiHydro::frictionSubstep()
       }
      }
      //Csernai nb friction terms
-      nbflux_p += -dens_p*dens_t/mN*D_N*h_p->getDtau();
-      nbflux_t += -dens_p*dens_t/mN*D_N*h_p->getDtau();
+      nbflux_p += -dens_p*dens_t/mN*D_N;
+      nbflux_t += -dens_p*dens_t/mN*D_N;
       if (formationTime > 0) {
 
       } else {
@@ -284,57 +408,168 @@ void MultiHydro::frictionSubstep()
    }
    // 2. projectile-fireball friction
    if(ep>0. && ef>0.) {
-    double dens_p = xi_fa*pow(mN/sqrt(savg), 2)*nbp;
-    double vptilde=std::sqrt(vfsq+vpsq+2.0*vfvp+vfvp*vfvp-vfsq*vpsq)/(1.0+vfvp);
-    double gammaptilde=1.0/std::sqrt(1.0-vptilde);
-    EfIntegrand EfI(xsect,TCf,mubCf,vptilde);
-    ROOT::Math::Functor1D func(&EfI,&EfIntegrand::EvalNpi);
-    ROOT::Math::GaussIntegrator GI;
-    GI.SetFunction(func);
-    GI.SetRelTolerance(1e-5);
-    double smin=pow(mN+mpi,2), smax=1e6;
-    double EfNpi=GI.Integral(smin,smax);
+    double dens_p = xi_fa*nbp;
+    double vptilde=std::sqrt(abs(vfsq+vpsq-2.0*vfvp+vfvp*vfvp-vfsq*vpsq))/abs(1.0-vfvp);
+    //double gammaptilde=1.0/std::sqrt(1.0-vptilde*vptilde);
+    double EfNpi=MultiHydro::EfIeval(TCf,vptilde);
     double EfNN=0.0;
-    if(frictionModel==2){
+    //cerr << EfNpi<<" "<< dens_p <<" "<< TCf<<" " << mubCf<<" "<<vptilde<<" "<< xsect->piN(2*smin) <<endl;
+    /*if(frictionModel==2){
         ROOT::Math::Functor1D func2(&EfI,&EfIntegrand::EvalNN);
         GI.SetFunction(func2);
         smin=pow(mN+mN,2);
         EfNN=GI.Integral(smin,smax);
-    }
+    }*/
     for(int i=0; i<4; i++){
-     flux_pf[i] += -M_PI*dens_p/vptilde/gammaptilde/mN*up[i]*(EfNpi+EfNN)*h_p->getDtau();
+     flux_pf[i] += -dens_p*up[i]*(EfNpi+EfNN);
     }
-    nbflux_pf += -M_PI*dens_p/vptilde/gammaptilde/mN/mN*(EfNpi+EfNN)*h_p->getDtau();
+    nbflux_pf += -dens_p/mN*(EfNpi+EfNN);
    }
+
+    /*double upuf = gammap*gammaf*(1.0 - vxp*vxf - vyp*vyf - vzp*vzf);
+    double savgpf = 2.0*mN*mpi*uput+mN*mN+mpi*mpi;
+    double sigmaNpi=xsect->piN(std::sqrt(savg));
+    double Vrel = sqrt(uput*uput - 1.0);
+    // friction coefficient
+    double D_N = mN*Vrel*sigmaNpi;
+    for(int i=0; i<4; i++){
+      // Csernai Tmunu friction terms
+      flux_p[i] += -xi_fa*nb*up[i]*D_N*h_p->getDtau();
+     }
+     //Csernai nb friction terms
+      nbflux_p += -dens_p*dens_t/mN*D_N*h_p->getDtau();*/
+
+
+
    // 3. target-fireball friction
    if(et>0. && ef>0.) {
-    double dens_t = xi_fa*pow(mN/sqrt(savg), 2)*nbt;
-    double vttilde=std::sqrt(vfsq+vtsq+2.0*vfvt+vfvt*vfvt-vfsq*vtsq)/(1.0+vfvt);
-    double gammattilde=1.0/std::sqrt(1.0-vttilde);
-    EfIntegrand EfI(xsect,TCf,mubCf,vttilde);
-    ROOT::Math::Functor1D func(&EfI,&EfIntegrand::EvalNpi);
-    ROOT::Math::GaussIntegrator GI;
-    GI.SetFunction(func);
-    GI.SetRelTolerance(1e-5);
-    double smin=pow(mN+mpi,2), smax=1e6;
-    double EfNpi=GI.Integral(smin,smax);
+    double dens_t = xi_fa*nbt;
+    double vttilde=std::sqrt(vfsq+vtsq-2.0*vfvt+vfvt*vfvt-vfsq*vtsq)/(1.0-vfvt);
+    //double gammattilde=1.0/std::sqrt(1.0-vttilde*vttilde);
+    double EfNpi=MultiHydro::EfIeval(TCf,vttilde);
     double EfNN=0.0;
-    if(frictionModel==2){
+    /*if(frictionModel==2){
         ROOT::Math::Functor1D func2(&EfI,&EfIntegrand::EvalNN);
         GI.SetFunction(func2);
         smin=pow(mN+mN,2);
         EfNN=GI.Integral(smin,smax);
-    }
+    }*/
     for(int i=0; i<4; i++){
-     flux_tf[i] += -M_PI*dens_t/vttilde/gammattilde/mN*ut[i]*(EfNpi+EfNN)*h_p->getDtau();
+     flux_tf[i] += -dens_t*ut[i]*(EfNpi+EfNN);
     }
-    nbflux_tf += -M_PI*dens_t/vttilde/gammattilde/mN/mN*(EfNpi+EfNN)*h_p->getDtau();
+    nbflux_tf += -dens_t/mN*(EfNpi+EfNN);
    }
-   double _Q_p[7], _Q_t[7], _Q_f[7], Q_p_new[7]={0}, Q_t_new[7]={0}, Q_f_new[7]={0};
-   c_p->getQ(_Q_p);
-   c_t->getQ(_Q_t);
-   c_f->getQ(_Q_f);
-   for(int i=0;i<7;i++){
+
+
+
+
+
+   if(_Q_p[0]>Q0min){
+    dtaufric=min(dtaufric,0.5*_Q_p[0]/taup/abs(flux_p[0]+flux_pf[0]));
+   }
+   if(_Q_t[0]>Q0min){
+    dtaufric=min(dtaufric,0.5*_Q_t[0]/taut/abs(flux_t[0]+flux_tf[0]));
+   }
+   if(dtaufric<mindtaufric&&dtaufric<dtau-dtaufrictot){
+    mindtaufric=dtaufric;
+   }
+
+   for(int i=0;i<4;i++){
+    flux_p[i]*=dtaufric;
+    flux_pf[i]*=dtaufric;
+    flux_t[i]*=dtaufric;
+    flux_tf[i]*=dtaufric;
+    flux_f[i]*=dtaufric;
+   }
+   nbflux_p*=dtaufric;
+   nbflux_pf*=dtaufric;
+   nbflux_t*=dtaufric;
+   nbflux_tf*=dtaufric;
+   nbflux_f*=dtaufric;
+
+
+
+
+
+
+    /*if(ix==f_p->getNX()/2&&iy==f_p->getNY()/2&&abs(iz-f_p->getNZ()/2)<1){
+        cout << iz << setw(14) << ep << setw(14) << e_p_new << setw(14) <<nbp <<setw(14)<<nb_p_new<< setw(14) << ep/mN/nbp << setw(14) << e_p_new/mN/nb_p_new << setw(14) << pp <<setw(14) <<p_p_new<< endl;
+        cout << flux_p[0] << setw(14)<< flux_p[1] << setw(14)<< flux_p[2] << setw(14)<< flux_p[3] << setw(14) << nbflux_p << endl;
+        cout << up[0] << setw(14) << up[1] << setw(14) << up[2] <<setw(14)<<up[3]<<setw(14)<< 1/mN <<endl;
+        cout << _Q_p[0] << setw(14) << _Q_p[1] << setw(14) << _Q_p[2] << setw(14) << _Q_p[3] << setw(14) << _Q_p[NB_] << endl;
+        cout << taup*((ep+pp)*up[0]*up[0]-pp) << setw(14) << taup*((ep+pp)*up[0]*up[1]) << setw(14)<< taup*((ep+pp)*up[0]*up[2]) << setw(14)<< taup*((ep+pp)*up[0]*up[3]) << setw(14) << taup*gammap*nbp << endl;
+    }*/
+
+          EtotFriction+=abs(flux_p[0]+flux_pf[0])+abs(flux_t[0]+flux_tf[0]);
+
+   //double energy_balance=min(e_p_new-1.2*mN*nb_p_new,min(e_t_new-1.2*mN*nb_t_new,e_f_new-1.2*mN*nb_f_new));
+   //if (energy_balance >= 0 &&
+       //if(_Q_p[T_] + (flux_p[0]+flux_pf[0])*taup >= 0 &&
+      // _Q_t[T_] + (flux_t[0]+flux_tf[0])*taut >= 0 &&
+      // _Q_f[T_] + (-flux_pf[0]-flux_tf[0]+flux_f[0])*tauf >= 0) {
+        if(_Q_p[T_] + (flux_p[0]+flux_pf[0])*taup < 0||_Q_t[T_] + (flux_t[0]+flux_tf[0])*taut < 0||_Q_f[T_] + (-flux_pf[0]-flux_tf[0]+flux_f[0])*tauf < 0){
+          EtotLimited+=abs(flux_p[0]+flux_pf[0])+abs(flux_t[0]+flux_tf[0]);
+         }
+        if(_Q_p[T_] + (flux_p[0]+flux_pf[0])*taup < 0){
+         NLimitedFriction++;
+         if(_Q_p[T_] + (flux_p[0])*taup < 0){
+          ELimitedFriction+=abs(flux_p[0]+flux_pf[0]);
+          for(int i=0;i<4;i++){
+          flux_f[i]=-flux_t[i];
+          flux_p[i]=0;
+          flux_pf[i]=0;
+         }
+          nbflux_f=-nbflux_t;
+          nbflux_p=0;
+          nbflux_pf=0;
+         }else{
+          ELimitedFriction+=abs(flux_pf[0]);
+          for(int i=0;i<4;i++){
+          flux_pf[i]=0;
+          }
+          nbflux_pf=0;
+         }
+        }
+        if(_Q_t[T_] + (flux_t[0]+flux_tf[0])*taut < 0){
+         NLimitedFriction++;
+         if(_Q_t[T_] + (flux_t[0])*taup < 0){
+          ELimitedFriction+=abs(flux_t[0]+flux_tf[0]);
+          for(int i=0;i<4;i++){
+          flux_f[i]=-flux_p[i];
+          flux_t[i]=0;
+          flux_tf[i]=0;
+         }
+          nbflux_f=-nbflux_p;
+          nbflux_t=0;
+          nbflux_tf=0;
+         }else{
+          ELimitedFriction+=abs(flux_tf[0]);
+          for(int i=0;i<4;i++){
+          flux_tf[i]=0;
+          }
+          nbflux_tf=0;
+         }
+        }
+        if(_Q_f[T_] + (-flux_pf[0]-flux_tf[0]+flux_f[0])*tauf < 0){
+         NLimitedFriction++;
+         ELimitedFriction+=abs(flux_t[0]+flux_tf[0]);
+         ELimitedFriction+=abs(flux_p[0]+flux_pf[0]);
+         for(int i=0;i<4;i++){
+          flux_f[i]=0;
+          flux_t[i]=0;
+          flux_p[i]=0;
+          flux_tf[i]=0;
+          flux_pf[i]=0;
+         }
+         nbflux_f=0;
+         nbflux_p=0;
+         nbflux_t=0;
+         nbflux_tf=0;
+         nbflux_pf=0;
+         }
+
+
+    for(int i=0;i<7;i++){
     Q_p_new[i]=_Q_p[i]/taup;
     Q_t_new[i]=_Q_t[i]/taup;
     Q_f_new[i]=_Q_f[i]/taup;
@@ -347,29 +582,21 @@ void MultiHydro::frictionSubstep()
     Q_p_new[4]+=(nbflux_p+nbflux_pf);
     Q_t_new[4]+=(nbflux_t+nbflux_tf);
     Q_f_new[4]+=(nbflux_f-nbflux_pf-nbflux_tf);
-    double e_p_new, e_t_new, e_f_new, nb_p_new, nb_t_new, nb_f_new, p_p_new, p_t_new, p_f_new, nq_new, ns_new, vx_new, vy_new, vz_new;
-    transformPV(eos,Q_p_new,e_p_new,p_p_new,nb_p_new,nq_new,ns_new,vx_new,vy_new,vz_new,false);
-    transformPV(eos,Q_t_new,e_t_new,p_t_new,nb_t_new,nq_new,ns_new,vx_new,vy_new,vz_new,false);
-    transformPV(eos,Q_f_new,e_f_new,p_f_new,nb_f_new,nq_new,ns_new,vx_new,vy_new,vz_new,false);
-
-    /*if(ix==f_p->getNX()/2&&iy==f_p->getNY()/2&&abs(iz-f_p->getNZ()/2)<1){
-        cout << iz << setw(14) << ep << setw(14) << e_p_new << setw(14) <<nbp <<setw(14)<<nb_p_new<< setw(14) << ep/mN/nbp << setw(14) << e_p_new/mN/nb_p_new << setw(14) << pp <<setw(14) <<p_p_new<< endl;
-        cout << flux_p[0] << setw(14)<< flux_p[1] << setw(14)<< flux_p[2] << setw(14)<< flux_p[3] << setw(14) << nbflux_p << endl;
-        cout << up[0] << setw(14) << up[1] << setw(14) << up[2] <<setw(14)<<up[3]<<setw(14)<< 1/mN <<endl;
-        cout << _Q_p[0] << setw(14) << _Q_p[1] << setw(14) << _Q_p[2] << setw(14) << _Q_p[3] << setw(14) << _Q_p[NB_] << endl;
-        cout << taup*((ep+pp)*up[0]*up[0]-pp) << setw(14) << taup*((ep+pp)*up[0]*up[1]) << setw(14)<< taup*((ep+pp)*up[0]*up[2]) << setw(14)<< taup*((ep+pp)*up[0]*up[3]) << setw(14) << taup*gammap*nbp << endl;
-    }*/
+    double e_p_new, e_t_new, e_f_new, nb_p_new, nb_t_new, nb_f_new, p_p_new, p_t_new, p_f_new, nq_new, ns_new, vx_p_new, vy_p_new, vz_p_new, vx_t_new, vy_t_new, vz_t_new, vx_f_new, vy_f_new, vz_f_new;
+    transformPV(eos,Q_p_new,e_p_new,p_p_new,nb_p_new,nq_new,ns_new,vx_p_new,vy_p_new,vz_p_new,false);
+    transformPV(eos,Q_t_new,e_t_new,p_t_new,nb_t_new,nq_new,ns_new,vx_t_new,vy_t_new,vz_t_new,false);
+    transformPV(eos,Q_f_new,e_f_new,p_f_new,nb_f_new,nq_new,ns_new,vx_f_new,vy_f_new,vz_f_new,false);
 
 
-   double energy_balance=min(e_p_new-1.2*mN*nb_p_new,
-                            min(e_t_new-1.2*mN*nb_t_new,
-                            e_f_new-1.2*mN*nb_f_new));
-   //if (energy_balance >= 0 &&
-       if(_Q_p[T_] + (flux_p[0]+flux_pf[0])*taup >= 0 &&
-       _Q_t[T_] + (flux_t[0]+flux_tf[0])*taut >= 0 &&
-       _Q_f[T_] + (-flux_pf[0]-flux_tf[0]+flux_f[0])*tauf >= 0) {
+
        if(e_p_new<1e-100||e_t_new<1e-100){
+          EtotLimited+=abs(flux_p[0]+flux_pf[0])+abs(flux_t[0]+flux_tf[0]);
+       }
+
+
         if(e_p_new<1e-100){
+         NLimitedFriction++;
+         ELimitedFriction+=abs(flux_p[0]+flux_pf[0]);
          for(int i=0;i<4;i++){
           flux_f[i]=-flux_t[i];
           flux_p[i]=0;
@@ -380,6 +607,8 @@ void MultiHydro::frictionSubstep()
           nbflux_pf=0;
         }
         if(e_t_new<1e-100){
+         NLimitedFriction++;
+         ELimitedFriction+=abs(flux_t[0]+flux_tf[0]);
          for(int i=0;i<4;i++){
           flux_f[i]=-flux_p[i];
           flux_t[i]=0;
@@ -389,11 +618,12 @@ void MultiHydro::frictionSubstep()
           nbflux_t=0;
           nbflux_tf=0;
         }
-        if(e_p_new>=1e-100||e_t_new>=1e-100){
-         NPartiallyLimitedFriction++;
-        }
-        NLimitedFriction++;
-       }
+
+
+
+
+
+
     c_p->addFlux((flux_p[0]+flux_pf[0])*taup, (flux_p[1]+flux_pf[1])*taup,
      (flux_p[2]+flux_pf[2])*taup, (flux_p[3]+flux_pf[3])*taup,(nbflux_p+nbflux_pf)*taup, 0., 0.);
     c_t->addFlux((flux_t[0]+flux_tf[0])*taut, (flux_t[1]+flux_tf[1])*taut,
@@ -406,8 +636,10 @@ void MultiHydro::frictionSubstep()
     c_p->clearFlux();
     c_t->clearFlux();
     c_f->clearFlux();
-   } else {
+
+   /*} else {
         NLimitedFriction++;
+        ELimitedFriction+=abs(flux_t[0]+flux_tf[0])+abs(flux_p[0]+flux_pf[0]);
         for(int i=0;i<4;i++){
             flux_f[i]=0;
             flux_p[i]=0;
@@ -420,15 +652,17 @@ void MultiHydro::frictionSubstep()
         nbflux_t=0;
         nbflux_pf=0;
         nbflux_tf=0;
-   }
+   }*/
    }else{
+    if(dtaufric==dtau){
     NSkip++;
+    }
    }
    //friction output
    //X direction
    if(iy==ny/2&&iz==nz/2){
     double x=f_f->getX(ix);
-    ffricx << setw(14) << tauf << setw(14) << x;
+    ffricx << setw(14) << tauf << setw(14) << dtaufric << setw(14) << x;
     for(int i=0;i<4;i++){
         ffricx << setw(14) << flux_p[i] << setw(14) << flux_t[i] << setw(14) << flux_pf[i] << setw(14) << flux_tf[i];
     }
@@ -437,7 +671,7 @@ void MultiHydro::frictionSubstep()
     //Y direction
    if(ix==nx/2&&iz==nz/2){
     double y=f_f->getY(iy);
-    ffricy << setw(14) << tauf << setw(14) << y;
+    ffricy << setw(14) << tauf << setw(14) << dtaufric << setw(14) << y;
     for(int i=0;i<4;i++){
         ffricy << setw(14) << flux_p[i] << setw(14) << flux_t[i] << setw(14) << flux_pf[i] << setw(14) << flux_tf[i];
     }
@@ -446,7 +680,7 @@ void MultiHydro::frictionSubstep()
     //Z direction
    if(iy==ny/2&&ix==nx/2){
     double z=f_f->getZ(iz);
-    ffricz << setw(14) << tauf << setw(14) << z;
+    ffricz << setw(14) << tauf << setw(14) << dtaufric << setw(14) << z;
     for(int i=0;i<4;i++){
         ffricz << setw(14) << flux_p[i] << setw(14) << flux_t[i] << setw(14) << flux_pf[i] << setw(14) << flux_tf[i];
     }
@@ -454,14 +688,22 @@ void MultiHydro::frictionSubstep()
    }
    if(-flux_p[0]-flux_t[0] > 0. && c_f->getMaxM()<0.01)
     c_f->setAllM(1.0);
+
+    Nloop++;
+    dtaufrictot+=dtaufric;
+   } // end dtau while loop
    } // end cell loop
    ffricx << endl;
    ffricy << endl;
    ffricz << endl;
  clearRetardedFriction();
+ cout << "Friction update done at tau="<<h_p->getTau()<<", average loop number: "<<1.0*(Nloop-NSkip)/(f_p->getNX()*f_p->getNY()*f_p->getNZ()-NSkip)<<", smallest dtaufric: "<<mindtaufric<<"."<<endl;
  cout << "skipped friction due to small energy density of target and projectile in "<< NSkip << " cells ("<< 100.0*NSkip/f_p->getNX()/f_p->getNY()/f_p->getNZ() << "%)"<<endl;
- cout << "friction drop rate " << 100.0*NLimitedFriction/f_p->getNX()/f_p->getNY()/f_p->getNZ() << "% ("<<NLimitedFriction<<" cells), of which only partially dropped: "
-    << 100.0*NPartiallyLimitedFriction/f_p->getNX()/f_p->getNY()/f_p->getNZ() <<"% ("<<NPartiallyLimitedFriction<<" cells)"<<endl;
+ cout << "friction droped "<<NLimitedFriction<<" times (" << 100.0*NLimitedFriction/(Nloop-NSkip) << "%), total energy transfer of "<< ELimitedFriction*h_p->getTau()*dx*dy*dz << " (" <<100.0*ELimitedFriction/EtotFriction<<"%)"<< endl;
+// <<"), of which only partially dropped: "<< 100.0*NPartiallyLimitedFriction/Nloop <<"% ("<<NPartiallyLimitedFriction<<" times, total energy transfer of "<< EPartiallyLimitedFriction*h_p->getTau()*dx*dy*dz <<")"<<endl;
+ if(EtotLimited>0){
+ cout << "average local fraction of dropped energy transfer: "<< 100.0*ELimitedFriction/EtotLimited << "%"<<endl;
+ }
  if (decreasingFormTime == 1) {
   formationTime -= dtau * dtauf;
   if (formationTime < 0) formationTime = 0;
