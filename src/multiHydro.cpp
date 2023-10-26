@@ -251,7 +251,7 @@ double MultiHydro::EfIeval(double Tf, double vatilde){
  int iT=floor((NTemp-1)*Tf/Tmax);
  int iv=floor(Nvatilde*vatilde);
  double lambdav=vatilde*Nvatilde-1.0*iv;
- double lambdaT=Tf/Tmax*(NTemp-1)-1,0*iT;
+ double lambdaT=Tf/Tmax*(NTemp-1)-1.0*iT;
  if(iv>=Nvatilde-1&&iT>=NTemp-1){
   return EfITable[Nvatilde-1][NTemp-1];
  }
