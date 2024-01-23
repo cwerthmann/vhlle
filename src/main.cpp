@@ -21,6 +21,7 @@
 #include <cstring>
 #include <ctime>
 #include <sstream>
+#include <omp.h>
 #include "fld.h"
 #include "hdo.h"
 #include "ic.h"
@@ -55,7 +56,7 @@ double etaS, zetaS, eCrit = 0.5, eEtaSMin, al, ah, aRho, T0, etaSMin;
 int icModel,glauberVariable =1;  // icModel=1 for pure Glauber, 2 for table input (Glissando etc)
 double Rgt = 1.0, Rgz;
 double xi_fa = 0.15, lambda = 1.0, formationTime = 0.0, xi_q = 30.0, xi_h = 1.8, Tmax=1.0;
-int frictionModel = 1, decreasingFormTime = 0, adaptiveTimestep=0, NTemp=1024, Nvatilde=1024, xsectparam=14;
+int frictionModel = 1, decreasingFormTime = 0, adaptiveTimestep=0, NTemp=1024, Nvatilde=1024, xsectparam=17;
 
 double snn, b_min, b_max, Etot;
 int projA, targA, projZ, targZ;
@@ -240,10 +241,13 @@ void printParameters() {
  cout << "Rgt = " << Rgt << endl; // "  Rgz = " << Rgz << endl;
  //cout << "impactPar = " << impactPar << endl;
  //cout << "s0ScaleFactor = " << s0ScaleFactor << endl;
+ cout << "b_min = " << b_min << endl;
+ cout << "b_max = " << b_max << endl;
  cout << "xi_fa = " << xi_fa << endl;
  cout << "xi_q = " << xi_q << endl;
  cout << "xi_h = " << xi_h << endl;
  cout << "lambda = " << lambda << endl;
+ cout << "frictionModel = " << frictionModel << endl;
  cout << "formationTime = " << formationTime << endl;
  cout << "NTemp = " << NTemp << endl;
  cout << "Nvatilde = " << Nvatilde << endl;

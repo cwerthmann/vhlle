@@ -11,8 +11,24 @@ using namespace std;
 
 CrossSections::CrossSections(void)
 {
+ // E_kin [GeV]
+ float Ekin [] =
+ {0.2,  0.3,  0.4,  0.5,  0.6,  0.7,  0.8,  0.9,  1.0,  1.5,
+  2.0,  2.5,  3.0,  4.0,  5.0,  6.0,  7.0,  8.0,  9.0,  10.0};
+  // sigma_E [fm^2]
+ float sigmaE [] =
+ {0.0,  0.0,  0.011, 0.04,  0.105, 0.16,  0.22,  0.25,  0.28,  0.4,
+  0.49,  0.57,  0.64,  0.73,  0.81,  0.865, 0.91,  0.94,  0.97,  0.99};
+  // sigma_T [fm^2]
+ float sigmaT [] =
+ {1.67, 1.48, 1.32, 1.23, 1.26, 1.37, 1.25, 1.10, 1.01, 0.86,
+  0.75,  0.68,  0.62,  0.55,  0.49,  0.45,  0.41,  0.38,  0.35,  0.33};
+ gSigmaE = new TGraph(sizeof(Ekin)/sizeof(float), Ekin, sigmaE);
+ gSigmaT = new TGraph(sizeof(Ekin)/sizeof(float), Ekin, sigmaT);
  // reading tabular data for pim-p total cross section
- ifstream finpimp("tables/pimprot-pdd.dat") ;
+ ifstream finpimp("tables/pimprot-pdd.dat") ;//14
+ //ifstream finpimp("tables/pimprot-pdd-nodelta.dat") ;//15
+ //ifstream finpimp("tables/pimprot-delta.dat") ;//16
  if(!finpimp){ cout << "cannot read tables/pimprot-pdd.dat\n"; exit(1) ; }
  string line ;
  istringstream instream ;
@@ -34,7 +50,9 @@ CrossSections::CrossSections(void)
  gSigmaPimp = new TGraph(i, sqrtsm, sigpimp);
 
  // reading tabular data for pip-p total cross section
- ifstream finpipp("tables/pipprot-pdd.dat");
+ ifstream finpipp("tables/pipprot-pdd.dat");//14
+ //ifstream finpipp("tables/pipprot-pdd-nodelta.dat");//15
+ //ifstream finpipp("tables/pipprot-delta.dat");//16
  if(!finpipp){ cout << "cannot read tables/pipprot-pdd.dat\n"; exit(1) ; }
  double sqrtsp [dimTb], sigpipp [dimTb];
  getline(finpipp, line) ;
@@ -93,6 +111,69 @@ void CrossSections::NN(double sqrts, double& sigmaNN)
     sigmaNN=a5*std::log(sqrts)+b5;
  }
  sigmaNN*=0.1; // converts [mb] -> [fm^2]
+}
+
+void CrossSections::Ivanov(double Ekin, double& sigmaT,
+ double& sigmaE, double& sigmaP)
+{
+ if(Ekin<0.){ // catching numerical errors
+  cout << "p-t friction: Ekin<0 \n";
+  exit(1);
+ }
+ if(Ekin<=0.2){
+  sigmaT = 1.239 + 0.0448/Ekin + 0.00831/(Ekin*Ekin);
+  sigmaE = 0.;
+ }
+ else if(Ekin>0.2 && Ekin<10){
+  sigmaT = gSigmaT->Eval(Ekin);
+  sigmaE = gSigmaE->Eval(Ekin);
+ }
+ else if(Ekin>=10. && Ekin<100.){
+  sigmaT = 1.365 * pow(Ekin, -0.623);
+  sigmaE = 0.464 + (0.257 - 0.0125*log(Ekin)) * log(Ekin);
+ }
+ else if(Ekin>=100.){
+  sigmaT = 0.865 * pow(Ekin, -0.525);
+  sigmaE = 1.403 + (-0.15 + 0.0317 * log(Ekin)) * log(Ekin);
+ }
+ // ... and same formula for sigmaP for all Ekin
+ sigmaP = sigmaT + (1. + 2.*mN/Ekin)*sigmaE;
+}
+
+void CrossSections::Ivanovbar(double sqrts, double& sigmaEbar, double& sigmaPbar, double& sigmaRbar)
+{
+ double a=0.867554, b=1.0468, c=2.4, d=1.55066, e=0.50371, f=0.0;
+ double Ekin=sqrts*sqrts/2/mN-2*mN, E0=sqrts/2, x=sqrt(E0*E0-mN*mN)/E0;
+ if(x>0){f=pow(pow(a*atanh(x),-c)+pow(b,-c),-1.0/c)/x;}
+ double sigmaE, sigmaNN;
+ NN(sqrts,sigmaNN);
+ if(Ekin<0.){ // catching numerical errors
+  cout << "p-t friction: Ekin<0 \n";
+  exit(1);
+ }
+ if(Ekin<=0.2){
+  sigmaE = 0.;
+ }
+ else if(Ekin>0.2 && Ekin<10){
+  sigmaE = gSigmaE->Eval(Ekin);
+ }
+ else if(Ekin>=10. && Ekin<100.){
+  sigmaE = 0.464 + (0.257 - 0.0125*log(Ekin)) * log(Ekin);
+ }
+ else if(Ekin>=100.){
+  sigmaE = 1.403 + (-0.15 + 0.0317 * log(Ekin)) * log(Ekin);
+ }
+
+ /*double Ar=9660*atanh(x)+45*sinh2artanh(x)+9*sinh4artanh(x)+sinh6artanh(x);
+ double Br=4830*atanh(x)+45*sinhartanh(x)+9*sinh2artanh(x)+sinh3artanh(x);
+ double Cr=4800/x*log(2*E0*E0/mN/(E0+mN))+32/x*pow(E0/mN,6)-32/x*pow((E0+mN)/2/mN,3);
+ if(x=0){
+  Cr=0;Ar=1;
+ }*/
+
+ sigmaEbar=sigmaE*(d-e)/d;
+ sigmaPbar=sigmaNN/2*(d-e-f)/d+sigmaE*f/d;
+ sigmaRbar=sigmaNN/2*e/d;
 }
 
 double CrossSections::piN(double sqrts)

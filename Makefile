@@ -3,7 +3,7 @@ ROOTCFLAGS   := $(shell root-config --cflags)
 ROOTLIBS     := $(shell root-config --libs)
 
 CXX           = g++
-CXXFLAGS      = -Wall -fPIC -O3
+CXXFLAGS      = -Wall -fopenmp -fPIC -O3
 LD            = g++
 LDFLAGS       = -O3
 
@@ -20,7 +20,7 @@ OBJS       = $(patsubst %.cpp,$(objdir)/%.o,$(SRC))
 TARGET	   = hlle_visc
 #------------------------------------------------------------------------------
 $(TARGET):       $(OBJS)
-		$(LD)  $(LDFLAGS) $^ -o $@ $(LIBS)
+		$(LD)  $(LDFLAGS) $^ -o $@ -fopenmp $(LIBS)
 		@echo "$@ done"
 clean:
 		@rm -f $(OBJS) $(TARGET)

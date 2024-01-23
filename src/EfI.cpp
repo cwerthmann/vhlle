@@ -44,12 +44,21 @@ EfIntegrand::EfIntegrand(CrossSections *_xsect, double _Tf, double _mubf, double
     return 36.0*M_PI*sqrt(p*p-mpi*mpi)*sigmaNpi*moller/(exp(p/Tf)-1.0)*gevtofm*gevtofm*gevtofm;
 }*/
 
-double EfIntegrand::EvalNpi(double p){//14
+/*double EfIntegrand::EvalNpi(double p){//14
     double seff=2.0*p*mN*gammaalphatilde;
     double sigmaNpi=xsect-> piN(sqrt(seff+mN*mN+mpi*mpi));
     double moller=0.5*sqrt(seff*seff-4.0*mN*mN*mpi*mpi);
     return 1.5/M_PI/M_PI*sqrt(p*p-mpi*mpi)*sigmaNpi*moller/(exp(p/Tf)-1.0)*gevtofm*gevtofm*gevtofm;
+}*/
+
+double EfIntegrand::EvalNpi(double p){//17
+    double seff=2.0*p*mN*gammaalphatilde;
+    double sigmaNpi=xsect-> piN(sqrt(seff+mN*mN+mpi*mpi));
+    double moller=0.5*sqrt(seff*seff-4.0*mN*mN*mpi*mpi);
+    return 1.5/M_PI/M_PI*p*sqrt(p*p-mpi*mpi)*sigmaNpi*moller/(exp(p/Tf)-1.0)*gevtofm*gevtofm*gevtofm;
 }
+
+
 
 /*double EfIntegrand::EvalNpi(double s){//8
     double sigmaNpi=xsect-> piN(sqrt(s));
