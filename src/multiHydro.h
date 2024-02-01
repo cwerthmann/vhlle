@@ -1,4 +1,5 @@
 #include <vector>
+#include <cmath>
 
 class Fluid;
 class Hydro;
@@ -26,8 +27,9 @@ class MultiHydro {
  int nx, ny, nz;
  double dx, dy, dz, dtau, tau0, sNN, Etot, Q0min;
  double xi_fa, formationTime, lambda, xi_q, xi_h;
- int frictionModel, decreasingFormTime;
+ int frictionModel, decreasingFormTime, unification;
  double dtauf;
+ double tau_unification;
  const double gmunu[4][4] = {
      {1, 0, 0, 0}, {0, -1, 0, 0}, {0, 0, -1, 0}, {0, 0, 0, -1}};
  double EtotSurf[3] = {0., 0., 0.}, EtotSurf_positive[3] = {0., 0., 0.},
@@ -38,7 +40,7 @@ public:
  MultiHydro(Fluid *f_p, Fluid *f_t, Fluid *f_f, Hydro *h_p, Hydro *h_t,
   Hydro* h_f, EoS *eos, TransportCoeff *trcoeff, double dtau, double eCrit, double sNN, double Etot,
   double xi_fa, double lambda, double formationTime, int frictionModel, int decreasingFormTime,
-  double xi_q, double xi_h, int NTemp, int Nvatilde, double Tmax, int xsectparam, std::vector<std::vector<Nucleon>> nucl);
+  double xi_q, double xi_h, int unification, double tau_unification, int NTemp, int Nvatilde, double Tmax, int xsectparam, std::vector<std::vector<Nucleon>> nucl);
  ~MultiHydro(void);
  void setDtau(double newdtau);
  void initOutput(const char *dir);
@@ -67,4 +69,8 @@ public:
  double getLocalEnergyDensity(double x, double y, double eta);
  void evolveSpectators(void);
  void printSpectators(std::ofstream &fout);
+ inline double expk2(double z){
+    if(z>300.0) return std::sqrt(M_PI/2.0/z)*(1.0+15.0/8.0/z+105.0/128.0/z/z-945.0/3072.0/z/z/z);
+    return std::exp(z)*std::cyl_bessel_k(2,z);
+ }
 };

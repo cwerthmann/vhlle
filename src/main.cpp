@@ -55,8 +55,8 @@ string collSystem, outputDir, isInputFile;
 double etaS, zetaS, eCrit = 0.5, eEtaSMin, al, ah, aRho, T0, etaSMin;
 int icModel,glauberVariable =1;  // icModel=1 for pure Glauber, 2 for table input (Glissando etc)
 double Rgt = 1.0, Rgz;
-double xi_fa = 0.15, lambda = 1.0, formationTime = 0.0, xi_q = 30.0, xi_h = 1.8, Tmax=1.0;
-int frictionModel = 1, decreasingFormTime = 0, adaptiveTimestep=0, NTemp=1024, Nvatilde=1024, xsectparam=17;
+double xi_fa = 0.15, lambda = 1.0, formationTime = 0.0, xi_q = 30.0, xi_h = 1.8, tau_unification=0.2, Tmax=1.0;
+int frictionModel = 1, decreasingFormTime = 0, adaptiveTimestep=0, unification=1, NTemp=1024, Nvatilde=1024, xsectparam=17;
 
 double snn, b_min, b_max, Etot;
 int projA, targA, projZ, targZ;
@@ -148,6 +148,10 @@ void readParameters(char *parFile) {
    xi_q = atof(parValue);
   else if (strcmp(parName, "xi_h") ==0)
    xi_h = atof(parValue);
+  else if (strcmp(parName, "unification") ==0)
+   unification = atof(parValue);
+  else if (strcmp(parName, "tau_unification") ==0)
+   tau_unification = atof(parValue);
   else if (strcmp(parName, "lambda") ==0)
    lambda = atof(parValue);
   else if (strcmp(parName, "formationTime") ==0)
@@ -249,6 +253,8 @@ void printParameters() {
  cout << "lambda = " << lambda << endl;
  cout << "frictionModel = " << frictionModel << endl;
  cout << "formationTime = " << formationTime << endl;
+ cout << "unification = " << unification << endl;
+ cout << "tau_unification = " << tau_unification << endl;
  cout << "NTemp = " << NTemp << endl;
  cout << "Nvatilde = " << Nvatilde << endl;
  cout << "Tmax = " << Tmax << endl;
@@ -463,7 +469,7 @@ if(adaptiveTimestep==1){
  time(&start);
  // h->setNSvalues() ; // initialize viscous terms
 
- mh = new MultiHydro(f_p, f_t, f_f, h_p, h_t, h_f, eos, trcoeff, dtau, eCrit, snn, Etot, xi_fa, lambda, formationTime, frictionModel, decreasingFormTime, xi_q, xi_h, NTemp, Nvatilde, Tmax, xsectparam, nucleons);
+ mh = new MultiHydro(f_p, f_t, f_f, h_p, h_t, h_f, eos, trcoeff, dtau, eCrit, snn, Etot, xi_fa, lambda, formationTime, frictionModel, decreasingFormTime, xi_q, xi_h, unification, tau_unification, NTemp, Nvatilde, Tmax, xsectparam, nucleons);
 
  f_p->initOutput(outputDir.c_str(), tau0, "proj");
  f_t->initOutput(outputDir.c_str(), tau0, "targ");
