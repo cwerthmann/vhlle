@@ -492,9 +492,10 @@ if(adaptiveTimestep==1){
   f_p->outputGnuplot(h_p->getTau());
   f_t->outputGnuplot(h_t->getTau());
   f_f->outputGnuplot(h_t->getTau());
-  f_p->outputSurface(h_p->getTau());
-  f_t->outputSurface(h_t->getTau());
-  f_f->outputSurface(h_f->getTau());
+  // -- commenting out the separate freezeout calculation - no need
+  //f_p->outputSurface(h_p->getTau());
+  //f_t->outputSurface(h_t->getTau());
+  //f_f->outputSurface(h_f->getTau());
   int status = mh->findFreezeout(eosH);
   if(status==1) {
    ofstream ffspect ((outputDir+"/spectators.dat").c_str());
