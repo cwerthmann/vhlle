@@ -16,7 +16,7 @@ class MultiHydro {
  Cornelius *cornelius;
  TransportCoeff *trcoeff;
  CrossSections *xsect;
- std::ofstream fmhfreeze_p, fmhfreeze_f, fmhfreeze_t, fmhfreeze_all, ffricx, ffricy, ffricz, EfIfile;
+ std::ofstream fmhfreeze_p, fmhfreeze_f, fmhfreeze_t, ffricx, ffricy, ffricz, EfIfile;
  std::string EfIfilename;
  double ***MHeps, ***MHepsPrev;
  double **EfITable;

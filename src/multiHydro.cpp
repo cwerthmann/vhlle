@@ -233,18 +233,16 @@ void MultiHydro::setFluids(Fluid *_f_p, Fluid *_f_t, Fluid *_f_f, Hydro *_h_p,
 }
 
 void MultiHydro::initOutput(const char *dir) {
- string outfreeze_p = dir, outfreeze_f = dir, outfreeze_t = dir, outfreeze_all = dir, outfricx=dir, outfricy=dir, outfricz=dir;
+ string outfreeze_p = dir, outfreeze_f = dir, outfreeze_t = dir, outfricx=dir, outfricy=dir, outfricz=dir;
  outfreeze_p.append("/freezeout_p.dat");
  outfreeze_t.append("/freezeout_t.dat");
  outfreeze_f.append("/freezeout_f.dat");
- outfreeze_all.append("/freezeout_all.dat");
  outfricx.append("/fricx.dat");
  outfricy.append("/fricy.dat");
  outfricz.append("/fricz.dat");
  fmhfreeze_p.open(outfreeze_p.c_str());
  fmhfreeze_t.open(outfreeze_t.c_str());
  fmhfreeze_f.open(outfreeze_f.c_str());
- fmhfreeze_all.open(outfreeze_all.c_str());
  ffricx.open(outfricx.c_str());
  ffricy.open(outfricy.c_str());
  ffricz.open(outfricz.c_str());
@@ -1107,7 +1105,6 @@ int MultiHydro::findFreezeout(EoS* eosH)
  int nelements = 0;
  int ne_pos = 0;
  double E=0., Efull = 0.;
- double Ttemp[4][4];
 
  // allocating corner points for Cornelius
  double ****ccube = new double ***[2];
@@ -1126,7 +1123,6 @@ int MultiHydro::findFreezeout(EoS* eosH)
    for (int iz = 2; iz < nz - 2; iz++) {
     double QCube_p[2][2][2][2][7], QCube_f[2][2][2][2][7], QCube_t[2][2][2][2][7];
     // array for storing full energy-momentum tensor of all three fluids at corners
-    double TCube[2][2][2][2][4][4];
     double piSquare_p[2][2][2][10], PiSquare_p[2][2][2];
     double piSquare_t[2][2][2][10], PiSquare_t[2][2][2];
     double piSquare_f[2][2][2][10], PiSquare_f[2][2][2];
@@ -1149,11 +1145,6 @@ int MultiHydro::findFreezeout(EoS* eosH)
         QCube_t[1][jx][jy][jz][i] = QCube_t[1][jx][jy][jz][i]/h_t->getTau();
         QCube_f[1][jx][jy][jz][i] = QCube_f[1][jx][jy][jz][i]/h_f->getTau();
        }
-       getEnergyMomentumTensor(Ttemp, QCube_p[1][jx][jy][jz], QCube_f[1][jx][jy][jz], QCube_t[1][jx][jy][jz]);
-       for (int i = 0; i < 4; i++)
-        for (int j = 0; j < 4; j++) {
-         TCube[1][jx][jy][jz][i][j] = Ttemp[i][j];
-       }
        cc_p->getQprev(QCube_p[0][jx][jy][jz]);
        cc_f->getQprev(QCube_f[0][jx][jy][jz]);
        cc_t->getQprev(QCube_t[0][jx][jy][jz]);
@@ -1161,11 +1152,6 @@ int MultiHydro::findFreezeout(EoS* eosH)
         QCube_p[0][jx][jy][jz][i] = QCube_p[0][jx][jy][jz][i]/h_p->getTau();
         QCube_t[0][jx][jy][jz][i] = QCube_t[0][jx][jy][jz][i]/h_t->getTau();
         QCube_f[0][jx][jy][jz][i] = QCube_f[0][jx][jy][jz][i]/h_f->getTau();
-       }
-       getEnergyMomentumTensor(Ttemp, QCube_p[0][jx][jy][jz], QCube_f[0][jx][jy][jz], QCube_t[0][jx][jy][jz]);
-       for (int i = 0; i < 4; i++)
-        for (int j = 0; j < 4; j++) {
-         TCube[0][jx][jy][jz][i][j] = Ttemp[i][j];
        }
        for (int ii = 0; ii < 4; ii++)
         for (int jj = 0; jj <= ii; jj++) {
@@ -1193,12 +1179,6 @@ int MultiHydro::findFreezeout(EoS* eosH)
      double QC_p[7] = {0., 0., 0., 0., 0., 0., 0.};
      double QC_t[7] = {0., 0., 0., 0., 0., 0., 0.};
      double QC_f[7] = {0., 0., 0., 0., 0., 0., 0.};
-     double TmunuC[4][4];
-     for (int i = 0; i < 4; i++)
-      for (int j = 0; j < 4; j++) {
-       TmunuC[i][j] = 0;
-     }
-     double eC = 0., pC = 0.;
      for (int ii = 0; ii < 10; ii++) {
       piC_p[ii] = 0.0;
       piC_t[ii] = 0.0;
@@ -1218,10 +1198,6 @@ int MultiHydro::findFreezeout(EoS* eosH)
        for (int jy = 0; jy < 2; jy++)
         for (int jz = 0; jz < 2; jz++) {
          for (int i = 0; i < 4; i++)
-          for (int j = 0; j < 4; j++) {
-           TmunuC[i][j] += TCube[jt][jx][jy][jz][i][j] * wCenT[jt] * wCenX[jx] *
-                   wCenY[jy] * wCenZ[jz];
-         }
          for (int i = 0; i < 7; i++) {
           QC_p[i] += QCube_p[jt][jx][jy][jz][i] * wCenT[jt] * wCenX[jx] *
                    wCenY[jy] * wCenZ[jz];
@@ -1248,39 +1224,10 @@ int MultiHydro::findFreezeout(EoS* eosH)
      transformPV(eos, QC_t, et, pt, nbt, nqt, nst, vxt, vyt, vzt);
      transformPV(eos, QC_f, ef, pf, nbf, nqf, nsf, vxf, vyf, vzf);
 
-     TMatrixD T(4,4);
-     for (int i=0; i<4; i++)
-      for (int j=0; j<4; j++){
-       T[i][j] = TmunuC[i][j]*gmunu[j][j];
-     }
-     // diagonalization of the energy-momentum tensor
-     TVectorD v(4);
-     if (T[0][0] == 0 && T[1][1] == 0 && T[2][2] == 0 && T[3][3] == 0)
-     {
-      eC = 0;
-      v[0] = 1;
-      v[1] = 0;
-      v[2] = 0;
-      v[3] = 0;
-     }
-     else
-     {
-      TMatrixDEigen Te(T);
-      TMatrixD eigenValues = Te.GetEigenValues();
-      TMatrixD eigenVectors = Te.GetEigenVectors();
-
-      eC = eigenValues[0][0];
-      v = TMatrixDColumn(eigenVectors,0);
-     }
-     vxC = v[1]/v[0];
-     vyC = v[2]/v[0];
-     vzC = v[3]/v[0];
-
      //transformPV(eos, QC, eC, pC, nbC, nqC, _ns, vxC, vyC, vzC);
      nbC = nbp + nbt + nbf;
      nqC = nqp + nqt + nqf;
      _ns = nsp + nst + nsf;
-     eos->eos(eC, nbC, nqC, _ns, TC, mubC, muqC, musC, pC);
      double TCp, mubCp, muqCp, musCp, pCp;
      double TCt, mubCt, muqCt, musCt, pCt;
      double TCf, mubCf, muqCf, musCf, pCf;
@@ -1310,15 +1257,12 @@ int MultiHydro::findFreezeout(EoS* eosH)
       v2C = 0.99;
      }
      double etaC = f_p->getZ(iz) + cornelius->get_centroid_elem(isegm, 3);
-     transformToLab(etaC, vxC, vyC, vzC);  // viC is now in lab.frame!
      transformToLab(etaC, vxp, vyp, vzp);
      transformToLab(etaC, vxt, vyt, vzt);
      transformToLab(etaC, vxf, vyf, vzf);
-     double gammaC = 1. / sqrt(1. - vxC * vxC - vyC * vyC - vzC * vzC);
      double gammaC_p = 1. / sqrt(1. - vxp * vxp - vyp * vyp - vzp * vzp);
      double gammaC_t = 1. / sqrt(1. - vxt * vxt - vyt * vyt - vzt * vzt);
      double gammaC_f = 1. / sqrt(1. - vxf * vxf - vyf * vyf - vzf * vzf);
-     double uC[4] = {gammaC, gammaC * vxC, gammaC * vyC, gammaC * vzC};
      double uC_p[4] = {gammaC_p, gammaC_p * vxp, gammaC_p * vyp, gammaC_p * vzp};
      double uC_t[4] = {gammaC_t, gammaC_t * vxt, gammaC_t * vyt, gammaC_t * vzt};
      double uC_f[4] = {gammaC_f, gammaC_f * vxf, gammaC_f * vyf, gammaC_f * vzf};
@@ -1336,13 +1280,11 @@ int MultiHydro::findFreezeout(EoS* eosH)
      dsds = dsigma[0]*dsigma[0] - dsigma[1]*dsigma[1] - dsigma[2]*dsigma[2] - dsigma[3]*dsigma[3];
      double dVEff_p = 0.0, dVEff_t = 0.0, dVEff_f = 0.0, dVEff = 0.0;
      for (int ii = 0; ii < 4; ii++) {
-      dVEff += dsigma[ii] * uC[ii];
       dVEff_p += dsigma[ii] * uC_p[ii];  // normalize for Delta eta=1
       dVEff_t += dsigma[ii] * uC_t[ii];
       dVEff_f += dsigma[ii] * uC_f[ii];
      }
      if (dVEff_p > 0) ne_pos++;
-     vEff += dVEff;
      vEff_p += dVEff_p;
      vEff_t += dVEff_t;
      vEff_f += dVEff_f;
@@ -1460,14 +1402,6 @@ int MultiHydro::findFreezeout(EoS* eosH)
         f_f->getZ(iz) + cornelius->get_centroid_elem(isegm, 3),
         dsigma, uC_f, TCf, mubCf, muqCf, musCf, picart_f, PiC_f, dVEff_f
        );
-       printFreezeout(
-        fmhfreeze_all,
-        h_f->getTau() - h_f->getDtau() + cornelius->get_centroid_elem(isegm, 0),
-        f_f->getX(ix) + cornelius->get_centroid_elem(isegm, 1),
-        f_f->getY(iy) + cornelius->get_centroid_elem(isegm, 2),
-        f_f->getZ(iz) + cornelius->get_centroid_elem(isegm, 3),
-        dsigma, uC, TC, mubC, muqC, musC, picart, PiC, dVEff
-       );
       }
      } else {
       if (dEtotSurf[0] > 0 && dVEff_p > 0) printFreezeout(
@@ -1494,14 +1428,6 @@ int MultiHydro::findFreezeout(EoS* eosH)
        f_f->getZ(iz) + cornelius->get_centroid_elem(isegm, 3),
        dsigma, uC_f, TCf, mubCf, muqCf, musCf, picart_f, PiC_f, dVEff_f
       );
-      if (dEtotSurf[2] > 0 && dVEff > 0) printFreezeout(
-        fmhfreeze_all,
-        h_f->getTau() - h_f->getDtau() + cornelius->get_centroid_elem(isegm, 0),
-        f_f->getX(ix) + cornelius->get_centroid_elem(isegm, 1),
-        f_f->getY(iy) + cornelius->get_centroid_elem(isegm, 2),
-        f_f->getZ(iz) + cornelius->get_centroid_elem(isegm, 3),
-        dsigma, uC, TC, mubC, muqC, musC, picart, PiC, dVEff
-       );
      }
 
     }
