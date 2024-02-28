@@ -454,6 +454,21 @@ void Fluid::outputGnuplot(double tau) {
         << c->getViscCorrCutFlag() << endl;
  }
  fz << endl;
+
+ // 2D
+ for (int ix = 0; ix < nx; ix++)
+ for (int iz = 0; iz < nz; iz++) {
+  double x = getX(ix);
+  double eta = getZ(iz);
+  Cell *c = getCell(ix, ny / 2, iz);
+  c->getPrimVar(eos, tau, e, p, nb, nq, ns, vx, vy, vz);
+  Y = eta + 1. / 2. * log((1. + vz) / (1. - vz));
+  eos->eos(e, nb, nq, ns, t, mub, muq, mus, p);
+  f2d << setw(14) << tau << setw(14) << x << setw(14) << eta << setw(14) << vx << setw(14) << Y << setw(14) << vz
+        << setw(14) << e << setw(14) << nb << setw(14) << nq << setw(14) << ns  << setw(14) << t << setw(14) << p  << setw(14) << mub << setw(14) << muq << setw(14) << mus
+        << setw(14) << c->getViscCorrCutFlag() << endl;
+ }
+ f2d << endl;
 }
 
 // unput: geom. rapidity + velocities in Bjorken frame, --> output: velocities
