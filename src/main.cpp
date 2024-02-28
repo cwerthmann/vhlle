@@ -149,7 +149,7 @@ void readParameters(char *parFile) {
   else if (strcmp(parName, "xi_h") ==0)
    xi_h = atof(parValue);
   else if (strcmp(parName, "unification") ==0)
-   unification = atof(parValue);
+   unification = atoi(parValue);
   else if (strcmp(parName, "tau_unification") ==0)
    tau_unification = atof(parValue);
   else if (strcmp(parName, "lambda") ==0)
