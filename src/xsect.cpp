@@ -171,8 +171,8 @@ void CrossSections::Ivanovbar(double sqrts, double& sigmaEbar, double& sigmaPbar
   Cr=0;Ar=1;
  }*/
 
- sigmaEbar=sigmaE*(d-e)/d;
- sigmaPbar=sigmaNN/2*(d-e-f)/d+sigmaE*f/d;
+ sigmaEbar=0.;
+ sigmaPbar=sigmaNN/2*(d-e-f)/d;
  sigmaRbar=sigmaNN/2*e/d;
 }
 
