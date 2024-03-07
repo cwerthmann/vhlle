@@ -80,7 +80,6 @@ MultiHydro::MultiHydro(Fluid *_f_p, Fluid *_f_t, Fluid *_f_f, Hydro *_h_p,
  cornelius = new Cornelius;
  cornelius->init(4, eCrit, arrayDx);
  ecrit = eCrit;
- vEff = 0.;
  vEff_p = 0.;
  vEff_t = 0.;
  vEff_f = 0.;
@@ -1192,8 +1191,7 @@ int MultiHydro::findFreezeout(EoS* eosH)
      nelements++;
 
      // interpolation procedure
-     double vxC = 0., vyC = 0., vzC = 0., TC = 0., mubC = 0., muqC = 0.,
-            musC = 0., PiC_p = 0., PiC_t = 0., PiC_f = 0., nbC = 0., nqC = 0.;
+     double PiC_p = 0., PiC_t = 0., PiC_f = 0.;
      double piC_p[10] = {0., 0., 0., 0., 0., 0., 0., 0., 0., 0.};
      double piC_t[10] = {0., 0., 0., 0., 0., 0., 0., 0., 0., 0.};
      double piC_f[10] = {0., 0., 0., 0., 0., 0., 0., 0., 0., 0.};
@@ -1237,7 +1235,6 @@ int MultiHydro::findFreezeout(EoS* eosH)
       QC_t[i] = QC_t[i] / (h_t->getTau() - h_t->getDtau() + cornelius->get_centroid_elem(isegm, 0));
       QC_f[i] = QC_f[i] / (h_f->getTau() - h_f->getDtau() + cornelius->get_centroid_elem(isegm, 0));
      }*/
-     double _ns = 0.0;
      double ep, pp, nbp, nqp, nsp, vxp, vyp, vzp;
      double et, pt, nbt, nqt, nst, vxt, vyt, vzt;
      double ef, pf, nbf, nqf, nsf, vxf, vyf, vzf;
@@ -1245,10 +1242,6 @@ int MultiHydro::findFreezeout(EoS* eosH)
      transformPV(eos, QC_t, et, pt, nbt, nqt, nst, vxt, vyt, vzt);
      transformPV(eos, QC_f, ef, pf, nbf, nqf, nsf, vxf, vyf, vzf);
 
-     //transformPV(eos, QC, eC, pC, nbC, nqC, _ns, vxC, vyC, vzC);
-     nbC = nbp + nbt + nbf;
-     nqC = nqp + nqt + nqf;
-     _ns = nsp + nst + nsf;
      double TCp, mubCp, muqCp, musCp, pCp;
      double TCt, mubCt, muqCt, musCt, pCt;
      double TCf, mubCf, muqCf, musCf, pCf;
@@ -1270,13 +1263,6 @@ int MultiHydro::findFreezeout(EoS* eosH)
         PiC_t += PiSquare_t[jx][jy][jz] * wCenX[jx] * wCenY[jy] * wCenZ[jz];
         PiC_f += PiSquare_f[jx][jy][jz] * wCenX[jx] * wCenY[jy] * wCenZ[jz];
        }
-     double v2C = vxC * vxC + vyC * vyC + vzC * vzC;
-     if (v2C > 1.) {
-      vxC *= sqrt(0.99 / v2C);
-      vyC *= sqrt(0.99 / v2C);
-      vzC *= sqrt(0.99 / v2C);
-      v2C = 0.99;
-     }
      double etaC = f_p->getZ(iz) + cornelius->get_centroid_elem(isegm, 3);
      transformToLab(etaC, vxp, vyp, vzp);
      transformToLab(etaC, vxt, vyt, vzt);
@@ -1299,7 +1285,7 @@ int MultiHydro::findFreezeout(EoS* eosH)
      dsigma[1] = tauC * cornelius->get_normal_elem(0, 1);
      dsigma[2] = tauC * cornelius->get_normal_elem(0, 2);
      dsds = dsigma[0]*dsigma[0] - dsigma[1]*dsigma[1] - dsigma[2]*dsigma[2] - dsigma[3]*dsigma[3];
-     double dVEff_p = 0.0, dVEff_t = 0.0, dVEff_f = 0.0, dVEff = 0.0;
+     double dVEff_p = 0.0, dVEff_t = 0.0, dVEff_f = 0.0;
      for (int ii = 0; ii < 4; ii++) {
       dVEff_p += dsigma[ii] * uC_p[ii];  // normalize for Delta eta=1
       dVEff_t += dsigma[ii] * uC_t[ii];
@@ -1378,9 +1364,6 @@ int MultiHydro::findFreezeout(EoS* eosH)
                                       ch * ch * piC_f[index44(3, 3)] +
                                       2. * sh * ch * piC_f[index44(0, 3)];
 #endif
-
-    double PiC=0.0;
-    double picart[10]={0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0};
 
      double dEtotSurf[3] = {0., 0., 0.};
      dEtotSurf[0] = (ep + pCp) * uC_p[0] * dVEff_p - pCp * dsigma[0]; // projectile

@@ -23,7 +23,7 @@ class MultiHydro {
  int NTemp, Nvatilde,xsectparam;
  double Tmax;
  std::vector<std::vector<double>> retardedFriction;
- double ecrit, vEff, vEff_p, vEff_t, vEff_f;
+ double ecrit, vEff_p, vEff_t, vEff_f;
  int nx, ny, nz;
  double dx, dy, dz, dtau, tau0, sNN, Etot, Q0min;
  double xi_fa, formationTime, lambda, xi_q, xi_h;
