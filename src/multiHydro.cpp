@@ -1216,7 +1216,6 @@ int MultiHydro::findFreezeout(EoS* eosH)
       for (int jx = 0; jx < 2; jx++)
        for (int jy = 0; jy < 2; jy++)
         for (int jz = 0; jz < 2; jz++) {
-         for (int i = 0; i < 4; i++)
          for (int i = 0; i < 7; i++) {
           QC_p[i] += QCube_p[jt][jx][jy][jz][i] * wCenT[jt] * wCenX[jx] *
                    wCenY[jy] * wCenZ[jz];
