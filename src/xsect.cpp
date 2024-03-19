@@ -142,38 +142,18 @@ void CrossSections::Ivanov(double Ekin, double& sigmaT,
 
 void CrossSections::Ivanovbar(double sqrts, double& sigmaEbar, double& sigmaPbar, double& sigmaRbar)
 {
- double a=0.867554, b=1.0468, c=2.4, d=1.55066, e=0.50371, f=0.0;
- double Ekin=sqrts*sqrts/2/mN-2*mN, E0=sqrts/2, x=sqrt(E0*E0-mN*mN)/E0;
- if(x>0){f=pow(pow(a*atanh(x),-c)+pow(b,-c),-1.0/c)/x;}
+ double Ekin=sqrts*sqrts/2/mN-2*mN, E0=sqrts/2, yalpha=std::acosh(E0/mN);//x=sqrt(E0*E0-mN*mN)/E0;
  double sigmaE, sigmaNN;
  NN(sqrts,sigmaNN);
  if(Ekin<0.){ // catching numerical errors
   cout << "p-t friction: Ekin<0 \n";
   exit(1);
  }
- if(Ekin<=0.2){
-  sigmaE = 0.;
- }
- else if(Ekin>0.2 && Ekin<10){
-  sigmaE = gSigmaE->Eval(Ekin);
- }
- else if(Ekin>=10. && Ekin<100.){
-  sigmaE = 0.464 + (0.257 - 0.0125*log(Ekin)) * log(Ekin);
- }
- else if(Ekin>=100.){
-  sigmaE = 1.403 + (-0.15 + 0.0317 * log(Ekin)) * log(Ekin);
- }
 
- /*double Ar=9660*atanh(x)+45*sinh2artanh(x)+9*sinh4artanh(x)+sinh6artanh(x);
- double Br=4830*atanh(x)+45*sinhartanh(x)+9*sinh2artanh(x)+sinh3artanh(x);
- double Cr=4800/x*log(2*E0*E0/mN/(E0+mN))+32/x*pow(E0/mN,6)-32/x*pow((E0+mN)/2/mN,3);
- if(x=0){
-  Cr=0;Ar=1;
- }*/
-
- sigmaEbar=0.;
- sigmaPbar=sigmaNN/2*(d-e-f)/d;
- sigmaRbar=sigmaNN/2*e/d;
+ double Aint=A(yalpha), Bint=B(yalpha), Cint=C(yalpha), Dint=D(yalpha), Fint=F(yalpha);
+ sigmaEbar=alpha*sigmaNN/2*(Aint-Bint-Dint)/Aint;
+ sigmaPbar=sigmaNN/2/Aint*((Aint-Bint)-(1.0-alpha)*Cint-alpha*Fint);
+ sigmaRbar=sigmaNN/2*Bint/Aint;
 }
 
 double CrossSections::piN(double sqrts)

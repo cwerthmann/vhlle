@@ -100,7 +100,7 @@ MultiHydro::MultiHydro(Fluid *_f_p, Fluid *_f_t, Fluid *_f_f, Hydro *_h_p,
   }
  }
 
- Q0min=1e-6*Etot/(dx)/(dy)/(dz)/f_p->getNX()/f_p->getNY()/f_p->getNZ();
+ Q0min=1e-3*h_p->getTau()*Etot/(dx)/(dy)/(dz)/f_p->getNX()/f_p->getNY()/f_p->getNZ();
  cout<<"min Q0 level: "<<Q0min<<endl;
  ifstream EfIstream(EfIfilename);
  if(!EfIstream.good()){
@@ -310,6 +310,8 @@ void MultiHydro::frictionSubstep()
  double ELimitedFriction=0.0;
  double EtotFriction=0.0;
  double EtotLimited=0.0;
+ double Eunphys=0.0;
+ double Etotloops=0.0;
  int NSkip=0;
  int Nloop=0;
  // here it is assumed that projectile and target grids
@@ -338,6 +340,10 @@ void MultiHydro::frictionSubstep()
     double taup = h_p->getTau()+dtaufrictot;
     double taut = h_t->getTau()+dtaufrictot;
     double tauf = h_f->getTau()+dtaufrictot;
+
+
+    Etotloops+=(_Q_p[0]+_Q_t[0]+_Q_f[0])/taup;
+
     double ep, pp, nbp, nqp, nsp, vxp, vyp, vzp;
     double et, pt, nbt, nqt, nst, vxt, vyt, vzt;
     double ef, pf, nbf, nqf, nsf, vxf, vyf, vzf;
@@ -481,8 +487,8 @@ void MultiHydro::frictionSubstep()
     } else {
      xsect->Ivanovbar(sqrt(savg), sigmaEbar, sigmaPbar, sigmaRbar);
     }
-    double D_Pbar = mN*Vrel*sigmaPbar;
-    double D_Ebar = mN*Vrel*sigmaEbar;
+    double D_Pbar = mN/2*Vrel*sigmaPbar;
+    double D_Ebar = mN/2*Vrel*sigmaEbar;
     double D_Rbar = mN*Vrel*sigmaRbar;
 
      for(int i=0; i<4; i++){
@@ -636,9 +642,9 @@ void MultiHydro::frictionSubstep()
       // _Q_f[T_] + (-flux_pf[0]-flux_tf[0]+flux_f[0])*tauf >= 0) {
         if(_Q_p[T_] + (flux_p[0]+flux_pf[0])*taup < 0||_Q_t[T_] + (flux_t[0]+flux_tf[0])*taut < 0||_Q_f[T_] + (-flux_pf[0]-flux_tf[0]-flux_p[0]-flux_t[0])*tauf < 0){
           EtotLimited+=abs(flux_p[0]+flux_pf[0])+abs(flux_t[0]+flux_tf[0]);
-          NLimitedFriction++;
          }
         if(_Q_p[T_] + (flux_p[0]+flux_pf[0])*taup < 0){
+          NLimitedFriction++;
          if(_Q_p[T_] + (flux_p[0])*taup < 0){
           ELimitedFriction+=abs(flux_p[0]+flux_pf[0])-0.5*_Q_p[T_]/taup;
           for(int i=0;i<4;i++){
@@ -656,6 +662,7 @@ void MultiHydro::frictionSubstep()
          }
         }
         if(_Q_t[T_] + (flux_t[0]+flux_tf[0])*taut < 0){
+         NLimitedFriction++;
          if(_Q_t[T_] + (flux_t[0])*taup < 0){
           ELimitedFriction+=abs(flux_t[0]+flux_tf[0])-0.5*_Q_t[T_]/taut;
           for(int i=0;i<4;i++){
@@ -673,6 +680,7 @@ void MultiHydro::frictionSubstep()
          }
         }
         if(_Q_f[T_] + (-flux_pf[0]-flux_tf[0]-flux_p[0]-flux_t[0])*tauf < 0){
+         NLimitedFriction++;
          ELimitedFriction+=abs(flux_t[0]+flux_tf[0]);
          ELimitedFriction+=abs(flux_p[0]+flux_pf[0]);
          for(int i=0;i<4;i++){
@@ -708,14 +716,14 @@ void MultiHydro::frictionSubstep()
 
 
 
-       if(e_p_new<mN*nb_p_new||e_t_new<mN*nb_t_new){
+       /*if(e_p_new<mN*nb_p_new||e_t_new<mN*nb_t_new){
          EtotLimited+=abs(flux_p[0]+flux_pf[0])+abs(flux_t[0]+flux_tf[0]);
-         NLimitedFriction++;
-       }
+       }*/
 
 
         if(e_p_new<mN*nb_p_new){
          Nunphys++;
+         Eunphys+=_Q_p[0]/taup;
          eratio=(flux_p[0]+flux_pf[0])/_Q_p[0];
 
          for(int i=1;i<4;i++){
@@ -727,9 +735,10 @@ void MultiHydro::frictionSubstep()
         }
         if(e_t_new<mN*nb_t_new){
          Nunphys++;
+         Eunphys+=_Q_t[0]/taut;
          eratio=(flux_t[0]+flux_tf[0])/_Q_t[0];
 
-         for(int i=0;i<4;i++){
+         for(int i=1;i<4;i++){
           flux_t[i]=eratio*_Q_t[i];
           flux_tf[i]=0;
          }
@@ -850,7 +859,8 @@ void MultiHydro::frictionSubstep()
  clearRetardedFriction();
  cout << "Friction update done at tau="<<h_p->getTau()<<", average loop number: "<<1.0*(Nloop-NSkip)/(f_p->getNX()*f_p->getNY()*f_p->getNZ()-NSkip)<<", smallest dtaufric: "<<mindtaufric<<"."<<endl;
  cout << "skipped friction due to small energy density of target and projectile in "<< NSkip << " cells ("<< 100.0*NSkip/f_p->getNX()/f_p->getNY()/f_p->getNZ() << "%)"<<endl;
- cout << "friction limited "<<NLimitedFriction<<" times (" << 100.0*NLimitedFriction/(Nloop-NSkip) << "%) with " << Nunphys << "unphysical fluid cells, total energy transfer of "<< ELimitedFriction*h_p->getTau()*dx*dy*dz << " (" <<100.0*ELimitedFriction/EtotFriction<<"%)"<< endl;
+ cout << "friction limited "<<NLimitedFriction<<" times (" << 100.0*NLimitedFriction/3/(Nloop-NSkip) << "%) and adjusted in " << Nunphys << " unphysical fluid cells (" << 100.0*Nunphys/2/(Nloop-NSkip) <<"%, "<< 100.0*Eunphys/Etotloops <<"% of energy), total dropped energy transfer of "
+        << ELimitedFriction*h_p->getTau()*dx*dy*dz << " (" <<100.0*ELimitedFriction/EtotFriction<<"%)"<< endl;
 // <<"), of which only partially dropped: "<< 100.0*NPartiallyLimitedFriction/Nloop <<"% ("<<NPartiallyLimitedFriction<<" times, total energy transfer of "<< EPartiallyLimitedFriction*h_p->getTau()*dx*dy*dz <<")"<<endl;
  if(EtotLimited>0){
  cout << "average local fraction of dropped energy transfer: "<< 100.0*ELimitedFriction/EtotLimited << "%"<<endl;
