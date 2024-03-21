@@ -25,6 +25,7 @@ private:
  int compress2dOut;
  std::ofstream fkw, fkw_dim, fxvisc, fyvisc, fdiagvisc, fx,
    fy, fdiag, fz, faniz, f2d, ffreeze;
+ char* fluidsuffix;
 
 public:
  Fluid(EoS *_eos, EoS *_eosH, TransportCoeff *_trcoeff, int _nx, int _ny,
@@ -71,4 +72,5 @@ public:
  void outputSurface(double tau);
  void outputCorona(double tau);
  void InitialAnisotropies(double tau0);
+ void CheckEoSPhysicality(double tau);
 };

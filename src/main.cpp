@@ -480,6 +480,9 @@ if(adaptiveTimestep==1){
  f_f->outputCorona(tau0);
  mh->getEnergyDensity();
 
+ f_p->CheckEoSPhysicality(h_p->getTau());
+ f_t->CheckEoSPhysicality(h_t->getTau());
+
  do {
  if(adaptiveTimestep==1&&dtau_adaptive<dtau){
     dtau_adaptive=min(0.5*h_p->getTau()*deta,dtau);

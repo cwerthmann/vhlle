@@ -297,8 +297,14 @@ void MultiHydro::performStep()
  }
  }
  }
+
+ f_p->CheckEoSPhysicality(h_p->getTau());
+ f_t->CheckEoSPhysicality(h_t->getTau());
+
  frictionSubstep();
 
+ f_p->CheckEoSPhysicality(h_p->getTau());
+ f_t->CheckEoSPhysicality(h_t->getTau());
 }
 
 
@@ -312,6 +318,7 @@ void MultiHydro::frictionSubstep()
  double EtotLimited=0.0;
  double Eunphys=0.0;
  double Etotloops=0.0;
+ double Etotloopspt=0.0;
  int NSkip=0;
  int Nloop=0;
  // here it is assumed that projectile and target grids
@@ -343,6 +350,7 @@ void MultiHydro::frictionSubstep()
 
 
     Etotloops+=(_Q_p[0]+_Q_t[0]+_Q_f[0])/taup;
+    Etotloopspt+=(_Q_p[0]+_Q_t[0])/taup;
 
     double ep, pp, nbp, nqp, nsp, vxp, vyp, vzp;
     double et, pt, nbt, nqt, nst, vxt, vyt, vzt;
@@ -859,8 +867,9 @@ void MultiHydro::frictionSubstep()
  clearRetardedFriction();
  cout << "Friction update done at tau="<<h_p->getTau()<<", average loop number: "<<1.0*(Nloop-NSkip)/(f_p->getNX()*f_p->getNY()*f_p->getNZ()-NSkip)<<", smallest dtaufric: "<<mindtaufric<<"."<<endl;
  cout << "skipped friction due to small energy density of target and projectile in "<< NSkip << " cells ("<< 100.0*NSkip/f_p->getNX()/f_p->getNY()/f_p->getNZ() << "%)"<<endl;
- cout << "friction limited "<<NLimitedFriction<<" times (" << 100.0*NLimitedFriction/3/(Nloop-NSkip) << "%) and adjusted in " << Nunphys << " unphysical fluid cells (" << 100.0*Nunphys/2/(Nloop-NSkip) <<"%, "<< 100.0*Eunphys/Etotloops <<"% of energy), total dropped energy transfer of "
+ cout << "friction limited "<<NLimitedFriction<<" times (" << 100.0*NLimitedFriction/3/(Nloop-NSkip) << "%), total dropped energy transfer of "
         << ELimitedFriction*h_p->getTau()*dx*dy*dz << " (" <<100.0*ELimitedFriction/EtotFriction<<"%)"<< endl;
+ cout << "friction adjusted in " << Nunphys << " unphysical fluid cells (" << 100.0*Nunphys/2/(Nloop-NSkip) <<"%, "<< 100.0*Eunphys/Etotloopspt <<"% of energy in p+t)" << endl;
 // <<"), of which only partially dropped: "<< 100.0*NPartiallyLimitedFriction/Nloop <<"% ("<<NPartiallyLimitedFriction<<" times, total energy transfer of "<< EPartiallyLimitedFriction*h_p->getTau()*dx*dy*dz <<")"<<endl;
  if(EtotLimited>0){
  cout << "average local fraction of dropped energy transfer: "<< 100.0*ELimitedFriction/EtotLimited << "%"<<endl;
@@ -1546,7 +1555,6 @@ double MultiHydro::calculateScatRates(double px, double T, double mu, double u[4
 }
 
 double MultiHydro::pp_total(double mandelstam_s) {
-  double mN = 0.938;
   const double p_lab = sqrt(mandelstam_s*(mandelstam_s-4*mN*mN)) / (2.0*mN);
   if (p_lab < 0.4) {
     return 34 * pow(p_lab / 0.4, -2.104);

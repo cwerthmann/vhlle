@@ -18,6 +18,8 @@
 #include <iostream>
 #include <fstream>
 #include <iomanip>
+#include <string.h>
+#include <stdlib.h>
 #include <cmath>
 #include <algorithm>
 #include "inc.h"
@@ -107,6 +109,7 @@ Fluid::~Fluid() {
 }
 
 void Fluid::initOutput(const char *dir, double tau0, char *suffix) {
+ fluidsuffix=strdup(suffix);
  char command[255];
  sprintf(command, "mkdir -p %s", dir);
  int return_mkdir = system(command);
@@ -1049,4 +1052,30 @@ void Fluid::InitialAnisotropies(double tau0) {
  }
 
  exit(1) ;
+}
+
+
+void Fluid::CheckEoSPhysicality(double tau){
+ double Nunphys, Eunphys, Ntot, Etot;
+ for (int ix = 2; ix < nx - 2; ix++)
+  for (int iy = 2; iy < ny - 2; iy++)
+   for (int iz = 2; iz < nz - 2; iz++) {
+    Cell *c = getCell(ix, iy, iz);
+    double _Q[7];
+    c->getQ(_Q);
+
+    Ntot++;
+    Etot+=_Q[0];
+
+    double e, p, nb, nq, ns, vx, vy, vz;
+    c->getPrimVar(eos, tau, e, p, nb, nq, ns, vx, vy, vz);
+
+    if(e<mN*nb){
+     Nunphys++;
+     Eunphys+=_Q[0];
+    }
+
+    }
+ cout << "Physicality check in " << fluidsuffix <<": " << Nunphys << " unphysical cells (" << 100.0*Nunphys/Ntot << "%) containing energy of " << Eunphys/tau << "GeV (" << 100.0*Eunphys/Etot << "%)" <<endl;
+
 }
