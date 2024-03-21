@@ -1076,6 +1076,6 @@ void Fluid::CheckEoSPhysicality(double tau){
     }
 
     }
- cout << "Physicality check in " << fluidsuffix <<": " << Nunphys << " unphysical cells (" << 100.0*Nunphys/Ntot << "%) containing energy of " << Eunphys/tau << "GeV (" << 100.0*Eunphys/Etot << "%)" <<endl;
+ cout << "Physicality check in " << fluidsuffix <<": " << Nunphys << " unphysical cells (" << 100.0*Nunphys/Ntot << "%) containing energy of " << Eunphys << " arb.u. (" << 100.0*Eunphys/Etot << "%)" <<endl;
 
 }
