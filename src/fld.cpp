@@ -1056,7 +1056,8 @@ void Fluid::InitialAnisotropies(double tau0) {
 
 
 void Fluid::CheckEoSPhysicality(double tau){
- double Nunphys, Eunphys, Ntot, Etot;
+ int Nunphys=0, Ntot=0;
+ double Eunphys=0.0, Etot=0.0, worst=1.0,avgnum=0.0;
  for (int ix = 2; ix < nx - 2; ix++)
   for (int iy = 2; iy < ny - 2; iy++)
    for (int iz = 2; iz < nz - 2; iz++) {
@@ -1074,8 +1075,14 @@ void Fluid::CheckEoSPhysicality(double tau){
      Nunphys++;
      Eunphys+=_Q[0];
     }
+    if(nb>1e-100){
+    if(e/nb<worst&&e>1e-100){
+     worst=e/nb;
+    }
 
+    avgnum+=e/nb*_Q[0];
+     }
     }
  cout << "Physicality check in " << fluidsuffix <<": " << Nunphys << " unphysical cells (" << 100.0*Nunphys/Ntot << "%) containing energy of " << Eunphys << " arb.u. (" << 100.0*Eunphys/Etot << "%)" <<endl;
-
+ cout << "Worst offender had e/nB="<<worst<<", average e/nB="<<avgnum/Etot<<endl;
 }
