@@ -16,6 +16,8 @@
 #include "eos.h"
 #include "eoChiral.h"
 
+const double mN = 0.939; //nucleon mass [GeV]
+
 using namespace std;
 
 // ---- auxiliary EoS class. Two instances (objects) of this class will be
@@ -98,7 +100,7 @@ EoSaux::~EoSaux() {
 
 void EoSaux::get(double e, double nb, double& p, double& T, double& mub,
                  double& mus) {
- if (e < 0.) {
+ if (e < 0. || e<mN*nb) {
   T = mub = mus = p = 0.;
   return;
  }
@@ -129,7 +131,7 @@ void EoSaux::get(double e, double nb, double& p, double& T, double& mub,
 }
 
 double EoSaux::p(double e, double nb) {
- if (e < 0.) return 0.0;
+ if (e < 0. || e<mN*nb) return 0.0;
  const double de = (emax - emin) / (ne - 1);
  const double dn = (nmax - nmin) / (nn - 1);
  int ie = (int)((e - emin) / de);
@@ -169,10 +171,13 @@ void EoSChiral::eos(double e, double nb, double nq, double ns, double& T,
   eossmall->get(e, nb, p, T, mub, mus);
  else if (e < 146. && nb < 6.)
   eosbig->get(e, nb, p, T, mub, mus);
- else {
+ else if (e>=mN*nb){
   p = 0.2964 * e;
   T = 0.15120476935 * pow(e, 0.25);
   mub = mus = 0.0;
+ }
+ else {
+  p = T = mub = mus = 0.;
  }
  muq = 0.0;  // generally it's not zero, but...but
 }
@@ -182,6 +187,7 @@ double EoSChiral::p(double e, double nb, double nq, double ns) {
   return eossmall->p(e, nb);
  else if (e < 146. && nb < 6.)
   return eosbig->p(e, nb);
- else
+ else if (e>=mN*nb)
   return 0.2964 * e;
+ else return 0.;
 }
