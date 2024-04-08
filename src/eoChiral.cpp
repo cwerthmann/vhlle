@@ -100,7 +100,8 @@ EoSaux::~EoSaux() {
 
 void EoSaux::get(double e, double nb, double& p, double& T, double& mub,
                  double& mus) {
- if (e < 0. || e<mN*nb) {
+ if (e <= 0. || e<=mN*nb) {
+ //if (e <= 0. || e<=1.01*mN*nb) {
   T = mub = mus = p = 0.;
   return;
  }
@@ -131,7 +132,8 @@ void EoSaux::get(double e, double nb, double& p, double& T, double& mub,
 }
 
 double EoSaux::p(double e, double nb) {
- if (e < 0. || e<mN*nb) return 0.0;
+ if (e < 0. || e<=mN*nb) return 0.0;
+ //if (e < 0. || e<=1.01*mN*nb) return 0.0;
  const double de = (emax - emin) / (ne - 1);
  const double dn = (nmax - nmin) / (nn - 1);
  int ie = (int)((e - emin) / de);

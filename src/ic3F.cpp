@@ -129,14 +129,16 @@ IC3F::IC3F(Fluid *f_p, Fluid *f_t, int _nevents, double _snn, double _b_min, dou
      double r_t = sqrt((x + b/2) * (x + b/2) + y * y + gamma * gamma * (z_t - z0_targ) * (z_t - z0_targ));
 
      // calculate energy-momentum tensor and charges in Cartesian frame at ix,iy,iz
-     double ep = 0.17 * mN / (1 + exp((r_p - Rproj) / WSdelta));
-     double et = 0.17 * mN / (1 + exp((r_t - Rtarg) / WSdelta));
-     double nbp = ep / mN;
-     double nbt = et / mN;
+     double nbp = 0.17 / (1 + exp((r_p - Rproj) / WSdelta));
+     double nbt = 0.17 / (1 + exp((r_t - Rtarg) / WSdelta));
+     double ep = nbp * mN;
+     double et = nbt * mN;
      double nqp = nbp * projZ / projA;
      double nqt = nbt * targZ / targA;
-     double pp = eos->p(ep, nbp, 0, nqp);
-     double pt = eos->p(et, nbt, 0, nqt);
+     //double pp = eos->p(ep, nbp, 0, nqp);
+     //double pt = eos->p(et, nbt, 0, nqt);
+     double pp = 0.0;
+     double pt = 0.0;
 
      double Ttt_p = (ep + pp) * gamma * gamma - pp;
      double Ttz_p = (ep + pp) * gamma * gamma * vcoll;
@@ -166,7 +168,7 @@ IC3F::IC3F(Fluid *f_p, Fluid *f_t, int _nevents, double _snn, double _b_min, dou
      QE_t[ix][iy][iz] = (t*Nqt_t - z*Nqz_t) / tau0;
 
      // calculate normalization factors
-     double nsp, vxp, vyp, vzp, mubp, muqp, musp, tp;
+     /*double nsp, vxp, vyp, vzp, mubp, muqp, musp, tp;
      double nst, vxt, vyt, vzt, mubt, muqt, must, tt;
      double Qp[7] = {T00_p[ix][iy][iz], 0, 0, T0z_p[ix][iy][iz], QB_p[ix][iy][iz], QE_p[ix][iy][iz], 0};
      double Qt[7] = {T00_t[ix][iy][iz], 0, 0, T0z_t[ix][iy][iz], QB_t[ix][iy][iz], QE_t[ix][iy][iz], 0};
@@ -178,16 +180,20 @@ IC3F::IC3F(Fluid *f_p, Fluid *f_t, int _nevents, double _snn, double _b_min, dou
      vzt = eta + 1. / 2. * log((1. + vzt) / (1. - vzt));
      vxt = vxt * cosh(vzt - eta) / cosh(vzt);
      vyt = vyt * cosh(vzt - eta) / cosh(vzt);
-     eos->eos(ep, nbp, nqp, nsp, tp, mubp, muqp, musp, pp);
-     eos->eos(et, nbt, nqt, nst, tt, mubt, muqt, must, pt);
+     pp=0.0;
+     pt=0.0;
      const double cosh_int = (sinh(eta + 0.5 * dz) - sinh(eta - 0.5 * dz)) / dz;
-     const double sinh_int = (cosh(eta + 0.5 * dz) - cosh(eta - 0.5 * dz)) / dz;
-     ep_norm += tau0 * (ep + pp) / (1. - vxp * vxp - vyp * vyp - tanh(vzp) * tanh(vzp)) *
+     const double sinh_int = (cosh(eta + 0.5 * dz) - cosh(eta - 0.5 * dz)) / dz;*/
+     ep_norm += tau0 * (T00_p[ix][iy][iz]*cosh(eta)
+                      + T0z_p[ix][iy][iz]*sinh(eta));
+     et_norm += tau0 * (T00_t[ix][iy][iz]*cosh(eta)
+                      + T0z_t[ix][iy][iz]*sinh(eta));
+     /*ep_norm += tau0 * (ep + pp) / (1. - vxp * vxp - vyp * vyp - tanh(vzp) * tanh(vzp)) *
              (cosh_int - tanh(vzp) * sinh_int) -
          tau0 * pp * cosh_int;
      et_norm += tau0 * (et + pt) / (1. - vxt * vxt - vyt * vyt - tanh(vzt) * tanh(vzt)) *
              (cosh_int - tanh(vzt) * sinh_int) -
-         tau0 * pt * cosh_int;
+         tau0 * pt * cosh_int;*/
      nbp_norm += QB_p[ix][iy][iz];
      nbt_norm += QB_t[ix][iy][iz];
      nqp_norm += QE_p[ix][iy][iz];

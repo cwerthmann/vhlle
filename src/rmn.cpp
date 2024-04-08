@@ -123,10 +123,10 @@ void transformPV(EoS *eos, double Q[7], double &e, double &p, double &nb,
  vy = v * Q[Y_] / M;
  vz = v * Q[Z_] / M;
  e = Q[T_] - M * v;
- p = eos->p(e, nb, nq, ns);
  nb = Q[NB_] * sqrt(1 - vx * vx - vy * vy - vz * vz);
  nq = Q[NQ_] * sqrt(1 - vx * vx - vy * vy - vz * vz);
  ns = Q[NS_] * sqrt(1 - vx * vx - vy * vy - vz * vz);
+ p = eos->p(e, nb, nq, ns);
  if ((e < 0. || sqrt(vx * vx + vy * vy + vz * vz) > 1.) && print_error){
   cout << Q[T_] << "  " << Q[X_] << "  " << Q[Y_] << "  " << Q[Z_] << "  "
        << Q[NB_] << endl;

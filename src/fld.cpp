@@ -1057,7 +1057,7 @@ void Fluid::InitialAnisotropies(double tau0) {
 
 void Fluid::CheckEoSPhysicality(double tau){
  int Nunphys=0, Ntot=0;
- double Eunphys=0.0, Etot=0.0, worst=1.0,avgnum=0.0;
+ double Eunphys=0.0, Etot=0.0, lowest=100.0, highest=0.01, avgNnum=0.0, avgNnumsq=0.0, avgEnum=0.0, avgEnumsq=0.0,highQ0=0.0,lowQ0=0.0;
  for (int ix = 2; ix < nx - 2; ix++)
   for (int iy = 2; iy < ny - 2; iy++)
    for (int iz = 2; iz < nz - 2; iz++) {
@@ -1065,24 +1065,35 @@ void Fluid::CheckEoSPhysicality(double tau){
     double _Q[7];
     c->getQ(_Q);
 
-    Ntot++;
-    Etot+=_Q[0];
+
 
     double e, p, nb, nq, ns, vx, vy, vz;
     c->getPrimVar(eos, tau, e, p, nb, nq, ns, vx, vy, vz);
 
+
+    if(nb>1e-10&&e>1e-10){
+    Ntot++;
+    Etot+=_Q[0];
     if(e<mN*nb){
      Nunphys++;
      Eunphys+=_Q[0];
     }
-    if(nb>1e-100){
-    if(e/nb<worst&&e>1e-100){
-     worst=e/nb;
+    if(e/nb<lowest){
+     lowest=e/nb;
+     lowQ0=_Q[0];
+    }if(e/nb>highest){
+     highest=e/nb;
+     highQ0=_Q[0];
     }
 
-    avgnum+=e/nb*_Q[0];
+    avgNnum+=e/nb;
+    avgNnumsq+=e*e/nb/nb;
+    avgEnum+=e/nb*_Q[0];
+    avgEnumsq+=e*e/nb/nb*_Q[0];
      }
     }
+    cout <<endl;
  cout << "Physicality check in " << fluidsuffix <<": " << Nunphys << " unphysical cells (" << 100.0*Nunphys/Ntot << "%) containing energy of " << Eunphys << " arb.u. (" << 100.0*Eunphys/Etot << "%)" <<endl;
- cout << "Worst offender had e/nB="<<worst<<", average e/nB="<<avgnum/Etot<<endl;
+ cout << "Lowest e/nB="<<lowest<< " in cell with "<<100.0*lowQ0*Ntot/Etot <<"% of mean energy, highest e/nB="<<highest<< " in cell with "<<100.0*highQ0*Ntot/Etot <<"% of mean energy, N average e/nB="<<avgNnum/Ntot<<"(±"<<sqrt(avgNnumsq/Ntot-avgNnum*avgNnum/Ntot/Ntot)<<"), E average e/nB="<<avgEnum/Etot<<"(±"<<sqrt(avgEnumsq/Etot-avgEnum*avgEnum/Etot/Etot)<<")"<<endl;
+   cout <<endl;
 }
