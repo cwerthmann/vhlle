@@ -1074,7 +1074,7 @@ void Fluid::CheckEoSPhysicality(double tau){
     if(nb>1e-10&&e>1e-10){
     Ntot++;
     Etot+=_Q[0];
-    if(e<mN*nb){
+    if(e<0.98*mN*nb){
      Nunphys++;
      Eunphys+=_Q[0];
     }

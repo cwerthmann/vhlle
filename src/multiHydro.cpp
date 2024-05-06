@@ -729,7 +729,7 @@ void MultiHydro::frictionSubstep()
        }*/
 
 
-        if(e_p_new<mN*nb_p_new){
+        if(e_p_new<0.98*mN*nb_p_new){
          Nunphys++;
          Eunphys+=_Q_p[0]/taup;
          eratio=(flux_p[0]+flux_pf[0])/_Q_p[0];
@@ -741,7 +741,7 @@ void MultiHydro::frictionSubstep()
           nbflux_p=eratio*_Q_p[NB_];
           nbflux_pf=0;
         }
-        if(e_t_new<mN*nb_t_new){
+        if(e_t_new<0.98*mN*nb_t_new){
          Nunphys++;
          Eunphys+=_Q_t[0]/taut;
          eratio=(flux_t[0]+flux_tf[0])/_Q_t[0];
