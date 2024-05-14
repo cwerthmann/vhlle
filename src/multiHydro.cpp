@@ -750,7 +750,7 @@ void MultiHydro::frictionSubstep()
           flux_t[i]=eratio*_Q_t[i];
           flux_tf[i]=0;
          }
-          nbflux_t=eratio*_Q_p[NB_];
+          nbflux_t=eratio*_Q_t[NB_];
           nbflux_tf=0;
         }
 
