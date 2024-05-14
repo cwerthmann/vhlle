@@ -6,7 +6,7 @@ class CrossSections {
  TGraph *gSigmaT, *gSigmaE, *gSigmaPimp, *gSigmaPipp;
  double alpha=0.5, beta=0.5;
 public:
- CrossSections(void);
+ CrossSections(double _alpha, double _beta);
  ~CrossSections(void);
  void Ivanov(double Ekin, double& sigmaT, double& sigmaE, double& sigmaP);
  void Ivanovbar(double sqrts, double& sigmaEbar, double& sigmaPbar, double& sigmaRbar);

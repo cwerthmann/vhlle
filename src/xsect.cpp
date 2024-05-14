@@ -9,8 +9,10 @@
 
 using namespace std;
 
-CrossSections::CrossSections(void)
+CrossSections::CrossSections(double _alpha, double _beta)
 {
+ alpha=_alpha;
+ beta=_beta;
  // E_kin [GeV]
  float Ekin [] =
  {0.2,  0.3,  0.4,  0.5,  0.6,  0.7,  0.8,  0.9,  1.0,  1.5,

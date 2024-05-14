@@ -28,7 +28,7 @@ using namespace std;
 MultiHydro::MultiHydro(Fluid *_f_p, Fluid *_f_t, Fluid *_f_f, Hydro *_h_p,
  Hydro *_h_t, Hydro *_h_f, EoS *_eos, TransportCoeff *_trcoeff, double _dtau,
  double eCrit, double _sNN, double _Etot, double _xi_fa, double _lambda, double _formationTime,
- int _frictionModel, int _decreasingFormTime, double _xi_q, double _xi_h, int _unification, double _tau_unification, int _NTemp, int _Nvatilde, double _Tmax, int _xsectparam, std::vector<std::vector<Nucleon>> nucl)
+ int _frictionModel, int _decreasingFormTime, double _xi_q, double _xi_h, double _alpha, double _beta, int _unification, double _tau_unification, int _NTemp, int _Nvatilde, double _Tmax, int _xsectparam, std::vector<std::vector<Nucleon>> nucl)
 {
  f_p = _f_p;
  f_t = _f_t;
@@ -38,7 +38,7 @@ MultiHydro::MultiHydro(Fluid *_f_p, Fluid *_f_t, Fluid *_f_f, Hydro *_h_p,
  h_f = _h_f;
  eos = _eos;
  trcoeff = _trcoeff;
- xsect = new CrossSections;
+ xsect = new CrossSections(_alpha,_beta);
  nx = f_p->getNX();
  ny = f_p->getNY();
  nz = f_p->getNZ();
