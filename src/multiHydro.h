@@ -27,7 +27,7 @@ class MultiHydro {
  int nx, ny, nz;
  double dx, dy, dz, dtau, tau0, sNN, Etot, Q0min;
  double xi_fa, formationTime, lambda, xi_q, xi_h;
- int frictionModel, decreasingFormTime, unification;
+ int frictionModel, decreasingFormTime, unification, physicality_limiter;
  double dtauf;
  double tau_unification;
  const double gmunu[4][4] = {
@@ -40,7 +40,7 @@ public:
  MultiHydro(Fluid *f_p, Fluid *f_t, Fluid *f_f, Hydro *h_p, Hydro *h_t,
   Hydro* h_f, EoS *eos, TransportCoeff *trcoeff, double dtau, double eCrit, double sNN, double Etot,
   double xi_fa, double lambda, double formationTime, int frictionModel, int decreasingFormTime,
-  double xi_q, double xi_h, double alpha, double beta, int unification, double tau_unification, int NTemp, int Nvatilde, double Tmax, int xsectparam, std::vector<std::vector<Nucleon>> nucl);
+  double xi_q, double xi_h, double alpha, double beta, int unification, int physicality_limiter, double tau_unification, int NTemp, int Nvatilde, double Tmax, int xsectparam, std::vector<std::vector<Nucleon>> nucl);
  ~MultiHydro(void);
  void setDtau(double newdtau);
  void initOutput(const char *dir);
