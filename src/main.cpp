@@ -261,6 +261,7 @@ void printParameters() {
  cout << "lambda = " << lambda << endl;
  cout << "frictionModel = " << frictionModel << endl;
  cout << "formationTime = " << formationTime << endl;
+ cout << "physicality_limiter = " << physicality_limiter << endl;
  cout << "unification = " << unification << endl;
  cout << "tau_unification = " << tau_unification << endl;
  cout << "NTemp = " << NTemp << endl;
