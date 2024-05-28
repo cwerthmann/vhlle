@@ -320,6 +320,11 @@ void MultiHydro::frictionSubstep()
  double Eunphys=0.0;
  double Etotloops=0.0;
  double Etotloopspt=0.0;
+ double Nbpt=0.0;
+ double Nbf=0.0;
+ double Nblim=0.0;
+ double Nbphyslim=0.0;
+ double Nbuni=0.0;
  int NSkip=0;
  int Nloop=0;
  // here it is assumed that projectile and target grids
@@ -328,6 +333,16 @@ void MultiHydro::frictionSubstep()
  for (int iy = 0; iy < f_p->getNY(); iy++)
   for (int iz = 0; iz < f_p->getNZ(); iz++)
    for (int ix = 0; ix < f_p->getNX(); ix++) {
+    double Nbpsub=0.0;
+    double Nbtsub=0.0;
+    double Nbpfsub=0.0;
+    double Nbtfsub=0.0;
+    double Nbtlimsub=0.0;
+    double Nbtphyslimsub=0.0;
+    double Nbtunisub=0.0;
+    double Nbplimsub=0.0;
+    double Nbpphyslimsub=0.0;
+    double Nbpunisub=0.0;
     double dtaufric;
     double dtaufrictot=0.0;
 
@@ -643,7 +658,10 @@ void MultiHydro::frictionSubstep()
     }*/
 
           EtotFriction+=abs(flux_p[0]+flux_pf[0])+abs(flux_t[0]+flux_tf[0]);
-
+            Nbpsub=abs(nbflux_p);
+            Nbtsub=abs(nbflux_t);
+            Nbpfsub=abs(nbflux_pf);
+            Nbtfsub=abs(nbflux_tf);
    //double energy_balance=min(e_p_new-1.2*mN*nb_p_new,min(e_t_new-1.2*mN*nb_t_new,e_f_new-1.2*mN*nb_f_new));
    //if (energy_balance >= 0 &&
        //if(_Q_p[T_] + (flux_p[0]+flux_pf[0])*taup >= 0 &&
@@ -655,6 +673,9 @@ void MultiHydro::frictionSubstep()
         if(_Q_p[T_] + (flux_p[0]+flux_pf[0])*taup < 0){
           NLimitedFriction++;
          if(_Q_p[T_] + (flux_p[0])*taup < 0){
+            Nbpsub=0.0;
+            Nbpfsub=0.0;
+            Nbplimsub=0.5*_Q_p[NB_]/taup;
           ELimitedFriction+=abs(flux_p[0]+flux_pf[0])-0.5*_Q_p[T_]/taup;
           for(int i=0;i<4;i++){
           flux_p[i]=-0.5*_Q_p[i]/taup;
@@ -664,6 +685,7 @@ void MultiHydro::frictionSubstep()
           nbflux_pf=0;
          }else{
           ELimitedFriction+=abs(flux_pf[0]);
+            Nbpfsub=0.0;
           for(int i=0;i<4;i++){
           flux_pf[i]=0;
           }
@@ -673,6 +695,9 @@ void MultiHydro::frictionSubstep()
         if(_Q_t[T_] + (flux_t[0]+flux_tf[0])*taut < 0){
          NLimitedFriction++;
          if(_Q_t[T_] + (flux_t[0])*taup < 0){
+            Nbtsub=0.0;
+            Nbtfsub=0.0;
+            Nbtlimsub=0.5*_Q_t[NB_]/taut;
           ELimitedFriction+=abs(flux_t[0]+flux_tf[0])-0.5*_Q_t[T_]/taut;
           for(int i=0;i<4;i++){
           flux_t[i]=-0.5*_Q_t[i]/taut;
@@ -682,6 +707,7 @@ void MultiHydro::frictionSubstep()
           nbflux_tf=0;
          }else{
           ELimitedFriction+=abs(flux_tf[0]);
+            Nbtfsub=0.0;
           for(int i=0;i<4;i++){
           flux_tf[i]=0;
           }
@@ -692,6 +718,12 @@ void MultiHydro::frictionSubstep()
          NLimitedFriction++;
          ELimitedFriction+=abs(flux_t[0]+flux_tf[0]);
          ELimitedFriction+=abs(flux_p[0]+flux_pf[0]);
+            Nbpsub=0.0;
+            Nbtsub=0.0;
+            Nbtfsub=0.0;
+            Nbpfsub=0.0;
+            Nbplimsub=0.0;
+            Nbtlimsub=0.0;
          for(int i=0;i<4;i++){
           flux_t[i]=0;
           flux_p[i]=0;
@@ -732,6 +764,9 @@ void MultiHydro::frictionSubstep()
 
         if(physicality_limiter==1&&e_p_new<0.98*mN*nb_p_new){
          Nunphys++;
+            Nbpsub=0.0;
+            Nbpfsub=0.0;
+            Nbplimsub=0.0;
          Eunphys+=_Q_p[0]/taup;
          eratio=(flux_p[0]+flux_pf[0])/_Q_p[0];
 
@@ -739,11 +774,15 @@ void MultiHydro::frictionSubstep()
           flux_p[i]=eratio*_Q_p[i];
           flux_pf[i]=0;
          }
+          Nbpphyslimsub+=eratio*_Q_p[NB_];
           nbflux_p=eratio*_Q_p[NB_];
           nbflux_pf=0;
         }
         if(physicality_limiter==1&&e_t_new<0.98*mN*nb_t_new){
          Nunphys++;
+            Nbtsub=0.0;
+            Nbtfsub=0.0;
+            Nbtlimsub=0.0;
          Eunphys+=_Q_t[0]/taut;
          eratio=(flux_t[0]+flux_tf[0])/_Q_t[0];
 
@@ -751,6 +790,7 @@ void MultiHydro::frictionSubstep()
           flux_t[i]=eratio*_Q_t[i];
           flux_tf[i]=0;
          }
+          Nbtphyslimsub+=eratio*_Q_t[NB_];
           nbflux_t=eratio*_Q_t[NB_];
           nbflux_tf=0;
         }
@@ -767,12 +807,22 @@ void MultiHydro::frictionSubstep()
     nbflux_t*=(1.0-unification_factor_vt);
     nbflux_pf*=(1.0-unification_factor_vp);
     nbflux_tf*=(1.0-unification_factor_vt);
+    Nbpsub*=(1.0-unification_factor_vp);
+    Nbtsub*=(1.0-unification_factor_vt);
+    Nbpfsub*=(1.0-unification_factor_vp);
+    Nbtfsub*=(1.0-unification_factor_vt);
+    Nbplimsub*=(1.0-unification_factor_vp);
+    Nbtlimsub*=(1.0-unification_factor_vt);
+    Nbpphyslimsub*=(1.0-unification_factor_vp);
+    Nbtphyslimsub*=(1.0-unification_factor_vt);
     for(int i=0;i<4;i++){
         flux_p[i]-=_Q_p[i]/taup*unification_factor_vp*unification_factor_t;
         flux_t[i]-=_Q_t[i]/tauf*unification_factor_vt*unification_factor_t;
     }
     nbflux_p-=_Q_p[4]/taup*unification_factor_vp*unification_factor_t;
     nbflux_t-=_Q_t[4]/tauf*unification_factor_vt*unification_factor_t;
+    Nbpunisub=_Q_p[4]/taup*unification_factor_vp*unification_factor_t;
+    Nbtunisub=_Q_t[4]/tauf*unification_factor_vt*unification_factor_t;
     }
 
     c_p->addFlux((flux_p[0]+flux_pf[0])*taup, (flux_p[1]+flux_pf[1])*taup,
@@ -788,7 +838,11 @@ void MultiHydro::frictionSubstep()
     c_t->clearFlux();
     c_f->clearFlux();
 
-
+    Nbpt+=Nbpsub+Nbtsub;
+    Nbf+=Nbpfsub+Nbtfsub;
+    Nblim+=Nbplimsub+Nbtlimsub;
+    Nbphyslim+=Nbpphyslimsub+Nbtphyslimsub;
+    Nbuni+=Nbpunisub+Nbtunisub;
    /*} else {
         NLimitedFriction++;
         ELimitedFriction+=abs(flux_t[0]+flux_tf[0])+abs(flux_p[0]+flux_pf[0]);
@@ -875,6 +929,9 @@ void MultiHydro::frictionSubstep()
  if(EtotLimited>0){
  cout << "average local fraction of dropped energy transfer: "<< 100.0*ELimitedFriction/EtotLimited << "%"<<endl;
  }
+ double Nbtranstot=Nbpt+Nbf+Nblim+Nbphyslim+Nbuni;
+ cout << "Nb transfer: total "<<Nbtranstot<<", p-t "<<Nbpt<<" ("<<1.0*Nbpt/Nbtranstot<<"%)"<<", f "<<Nbf<<" ("<<1.0*Nbf/Nbtranstot<<"%)"
+        <<", limiter "<<Nblim<<" ("<<1.0*Nblim/Nbtranstot<<"%)"<<", physicality limiter "<<Nbphyslim<<" ("<<1.0*Nbphyslim/Nbtranstot<<"%)"<<", unification "<<Nbuni<<" ("<<1.0*Nbuni/Nbtranstot<<"%)"<<endl;
  if (decreasingFormTime == 1) {
   formationTime -= dtau * dtauf;
   if (formationTime < 0) formationTime = 0;
