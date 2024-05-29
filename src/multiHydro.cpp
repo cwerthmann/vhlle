@@ -325,6 +325,7 @@ void MultiHydro::frictionSubstep()
  double Nblim=0.0;
  double Nbphyslim=0.0;
  double Nbuni=0.0;
+ double Nbpsub,Nbtsub,Nbpfsub,Nbtfsub,Nbtlimsub,Nbtphyslimsub,Nbtunisub,Nbplimsub,Nbpphyslimsub,Nbpunisub;
  int NSkip=0;
  int Nloop=0;
  // here it is assumed that projectile and target grids
@@ -333,20 +334,20 @@ void MultiHydro::frictionSubstep()
  for (int iy = 0; iy < f_p->getNY(); iy++)
   for (int iz = 0; iz < f_p->getNZ(); iz++)
    for (int ix = 0; ix < f_p->getNX(); ix++) {
-    double Nbpsub=0.0;
-    double Nbtsub=0.0;
-    double Nbpfsub=0.0;
-    double Nbtfsub=0.0;
-    double Nbtlimsub=0.0;
-    double Nbtphyslimsub=0.0;
-    double Nbtunisub=0.0;
-    double Nbplimsub=0.0;
-    double Nbpphyslimsub=0.0;
-    double Nbpunisub=0.0;
     double dtaufric;
     double dtaufrictot=0.0;
 
     while(dtaufrictot<dtau){
+     Nbpsub=0.0;
+     Nbtsub=0.0;
+     Nbpfsub=0.0;
+     Nbtfsub=0.0;
+     Nbtlimsub=0.0;
+     Nbtphyslimsub=0.0;
+     Nbtunisub=0.0;
+     Nbplimsub=0.0;
+     Nbpphyslimsub=0.0;
+     Nbpunisub=0.0;
     dtaufric=dtau-dtaufrictot;
     double flux_p [4] = {0.}, flux_t [4] = {0.},
            flux_pf [4] = {0.}, flux_tf [4] = {0.},
