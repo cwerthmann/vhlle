@@ -774,7 +774,7 @@ void MultiHydro::frictionSubstep()
           flux_p[i]=eratio*_Q_p[i];
           flux_pf[i]=0;
          }
-          Nbpphyslimsub+=eratio*_Q_p[NB_];
+          Nbpphyslimsub=abs(eratio*_Q_p[NB_]);
           nbflux_p=eratio*_Q_p[NB_];
           nbflux_pf=0;
         }
@@ -790,7 +790,7 @@ void MultiHydro::frictionSubstep()
           flux_t[i]=eratio*_Q_t[i];
           flux_tf[i]=0;
          }
-          Nbtphyslimsub+=eratio*_Q_t[NB_];
+          Nbtphyslimsub=abs(eratio*_Q_t[NB_]);
           nbflux_t=eratio*_Q_t[NB_];
           nbflux_tf=0;
         }
@@ -821,8 +821,8 @@ void MultiHydro::frictionSubstep()
     }
     nbflux_p-=_Q_p[4]/taup*unification_factor_vp*unification_factor_t;
     nbflux_t-=_Q_t[4]/tauf*unification_factor_vt*unification_factor_t;
-    Nbpunisub=_Q_p[4]/taup*unification_factor_vp*unification_factor_t;
-    Nbtunisub=_Q_t[4]/tauf*unification_factor_vt*unification_factor_t;
+    Nbpunisub=abs(_Q_p[4]/taup*unification_factor_vp*unification_factor_t);
+    Nbtunisub=abs(_Q_t[4]/tauf*unification_factor_vt*unification_factor_t);
     }
 
     c_p->addFlux((flux_p[0]+flux_pf[0])*taup, (flux_p[1]+flux_pf[1])*taup,
@@ -930,8 +930,8 @@ void MultiHydro::frictionSubstep()
  cout << "average local fraction of dropped energy transfer: "<< 100.0*ELimitedFriction/EtotLimited << "%"<<endl;
  }
  double Nbtranstot=Nbpt+Nbf+Nblim+Nbphyslim+Nbuni;
- cout << "Nb transfer: total "<<Nbtranstot<<", p-t "<<Nbpt<<" ("<<1.0*Nbpt/Nbtranstot<<"%)"<<", f "<<Nbf<<" ("<<1.0*Nbf/Nbtranstot<<"%)"
-        <<", limiter "<<Nblim<<" ("<<1.0*Nblim/Nbtranstot<<"%)"<<", physicality limiter "<<Nbphyslim<<" ("<<1.0*Nbphyslim/Nbtranstot<<"%)"<<", unification "<<Nbuni<<" ("<<1.0*Nbuni/Nbtranstot<<"%)"<<endl;
+ cout << "Nb transfer: total "<<Nbtranstot<<", p-t "<<Nbpt<<" ("<<100.0*Nbpt/Nbtranstot<<"%)"<<", f "<<Nbf<<" ("<<100.0*Nbf/Nbtranstot<<"%)"
+        <<", limiter "<<Nblim<<" ("<<100.0*Nblim/Nbtranstot<<"%)"<<", physicality limiter "<<Nbphyslim<<" ("<<100.0*Nbphyslim/Nbtranstot<<"%)"<<", unification "<<Nbuni<<" ("<<100.0*Nbuni/Nbtranstot<<"%)"<<endl;
  if (decreasingFormTime == 1) {
   formationTime -= dtau * dtauf;
   if (formationTime < 0) formationTime = 0;
