@@ -396,20 +396,24 @@ void MultiHydro::frictionSubstep()
     double vtsq=vxt*vxt+vyt*vyt+vzt*vzt;
     double vfvp=vxf*vxp+vyf*vyp+vzf*vzp;
     double vfvt=vxf*vxt+vyf*vyt+vzf*vzt;
-    double vTf=2.0*TCf/mpi*(1.0+TCf/mpi)/expk2(mpi/TCf);
+    //double vTf=2.0*TCf/mpi*(1.0+TCf/mpi)/expk2(mpi/TCf);
+    double avggp=1.0/(1.0+TCp/mN)+3*TCp/mN;
+    double vTp=sqrt(max(0.0,1.0-1.0/avggp/avggp));
+    double avggt=1.0/(1.0+TCt/mN)+3*TCt/mN;
+    double vTt=sqrt(max(0.0,1.0-1.0/avggt/avggt));
     double vptilde=sqrt(max(0.0,1.0-(1.0-vfsq)*(1.0-vpsq)/(1.0-vfvp)/(1.0-vfvp)));//sqrt(abs(vfsq+vpsq-2.0*vfvp+vfvp*vfvp-vfsq*vpsq))/abs(1.0-vfvp);
     double vttilde=sqrt(max(0.0,1.0-(1.0-vfsq)*(1.0-vtsq)/(1.0-vfvt)/(1.0-vfvt)));//sqrt(abs(vfsq+vtsq-2.0*vfvt+vfvt*vfvt-vfsq*vtsq))/abs(1.0-vfvt);
     double unification_factor_vp=0.0;
-    if(vptilde/vTf<1e-5){
-        unification_factor_vp=1-vptilde*vptilde/vTf/vTf-0.5*pow(vptilde/vTf,4);
-    }else if(vptilde<vTf){
-        unification_factor_vp=exp(1.0/(1.0-vTf*vTf/vptilde/vptilde));
+    if(vptilde/vTp<1e-5){
+        unification_factor_vp=1-vptilde*vptilde/vTp/vTp-0.5*pow(vptilde/vTp,4);
+    }else if(vptilde<vTp){
+        unification_factor_vp=exp(1.0/(1.0-vTp*vTp/vptilde/vptilde));
     }
     double unification_factor_vt=0.0;
-    if(vttilde/vTf<1e-5){
-        unification_factor_vt=1-vttilde*vttilde/vTf/vTf-0.5*pow(vttilde/vTf,4);
-    }else if(vttilde<vTf){
-        unification_factor_vt=exp(1.0/(1.0-vTf*vTf/vttilde/vttilde));
+    if(vttilde/vTt<1e-5){
+        unification_factor_vt=1-vttilde*vttilde/vTt/vTt-0.5*pow(vttilde/vTt,4);
+    }else if(vttilde<vTt){
+        unification_factor_vt=exp(1.0/(1.0-vTt*vTt/vttilde/vttilde));
     }
     double uput = gammap*gammat*(1.0 - vxp*vxt - vyp*vyt - vzp*vzt);
     double savg = 2.0*mN*mN*(1.0 + uput);
