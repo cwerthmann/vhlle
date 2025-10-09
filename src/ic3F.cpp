@@ -3,6 +3,7 @@
 #include <iomanip>
 #include <random>
 #include <cfloat>
+#include <omp.h> // Added for OpenMP
 
 #include "fld.h"
 #include "eos.h"
@@ -103,9 +104,6 @@ IC3F::IC3F(Fluid *f_p, Fluid *f_t, int _nevents, double _snn, double _b_min, dou
  // random generators
  random_device rd;
  mt19937 gen(rd());
- uniform_real_distribution<> dis_proj(- Rproj - 4.0, Rproj + 4.0);
- uniform_real_distribution<> dis_targ(- Rtarg - 4.0, Rtarg + 4.0);
- uniform_real_distribution<> dis_uniform(0.0, 1.0);
 
  if (nevents < 0) {
   cout << "nevents has to be positive" << endl;
@@ -255,43 +253,67 @@ IC3F::IC3F(Fluid *f_p, Fluid *f_t, int _nevents, double _snn, double _b_min, dou
    nucleons[iev].clear();
 
    // generating nucleons of projectile nucleus
-   for (int i = 0; i < projA; i++) {
-    generated = false;
-    double x, y, z, r;
-    while (!generated) {
-     x = dis_proj(gen);
-     y = dis_proj(gen);
-     z = dis_proj(gen);
-     r = sqrt(x*x + y*y + z*z);
-     if (dis_uniform(gen) < 1/(1 + exp((r - Rproj) / WSdelta))) generated = true;
+#pragma omp parallel
+   {
+    // Each thread gets its own private, uniquely seeded random number generator and distributions
+    mt19937 gen_private(rd() + omp_get_thread_num());
+    uniform_real_distribution<> dis_proj_private(-Rproj - 4.0, Rproj + 4.0);
+    uniform_real_distribution<> dis_uniform_private(0.0, 1.0);
+
+#pragma omp for
+    for (int i = 0; i < projA; i++) {
+     bool generated = false;
+     double x, y, z, r;
+     while (!generated) {
+      x = dis_proj_private(gen_private);
+      y = dis_proj_private(gen_private);
+      z = dis_proj_private(gen_private);
+      r = sqrt(x*x + y*y + z*z);
+      if (dis_uniform_private(gen_private) < 1/(1 + exp((r - Rproj) / WSdelta))) generated = true;
+     }
+     x += b / 2;
+     z = z / gamma + z0_proj;
+     double eta = asinh(z * cosh(rap_beam) / tau0 - sinh(rap_beam)) + rap_beam;
+     int charge = i < projZ ? 1 : 0;
+#pragma omp critical
+     {
+        nucleons[iev].push_back(Nucleon(x, y, eta, rap_beam, charge));
+     }
+     makeSmoothPart(x, y, eta, charge, rap_beam, true);
+     //fout << x << " " << y << " " << z << " " << r << " " << eta << endl;
     }
-    x += b / 2;
-    z = z / gamma + z0_proj;
-    double eta = asinh(z * cosh(rap_beam) / tau0 - sinh(rap_beam)) + rap_beam;
-    int charge = i < projZ ? 1 : 0;
-    nucleons[iev].push_back(Nucleon(x, y, eta, rap_beam, charge));
-    makeSmoothPart(x, y, eta, charge, rap_beam, true);
-    //fout << x << " " << y << " " << z << " " << r << " " << eta << endl;
    }
 
    // generating nucleons of target nucleus
-   for (int i = 0; i < targA; i++) {
-    generated = false;
-    double x, y, z, r;
-    while (!generated) {
-     x = dis_targ(gen);
-     y = dis_targ(gen);
-     z = dis_targ(gen);
-     r = sqrt(x*x + y*y + z*z);
-     if (dis_uniform(gen) < 1/(1 + exp((r - Rtarg) / WSdelta))) generated = true;
+#pragma omp parallel
+   {
+    // Each thread gets its own private, uniquely seeded random number generator and distributions
+    mt19937 gen_private(rd() + omp_get_thread_num());
+    uniform_real_distribution<> dis_targ_private(-Rtarg - 4.0, Rtarg + 4.0);
+    uniform_real_distribution<> dis_uniform_private(0.0, 1.0);
+
+#pragma omp for
+    for (int i = 0; i < targA; i++) {
+     bool generated = false;
+     double x, y, z, r;
+     while (!generated) {
+      x = dis_targ_private(gen_private);
+      y = dis_targ_private(gen_private);
+      z = dis_targ_private(gen_private);
+      r = sqrt(x*x + y*y + z*z);
+      if (dis_uniform_private(gen_private) < 1/(1 + exp((r - Rtarg) / WSdelta))) generated = true;
+     }
+     x -= b / 2;
+     z = z / gamma + z0_targ;
+     double eta = asinh(z * cosh(rap_beam) / tau0 + sinh(rap_beam)) - rap_beam;
+     int charge = i < targZ ? 1 : 0;
+#pragma omp critical
+     {
+        nucleons[iev].push_back(Nucleon(x, y, eta, -rap_beam, charge));
+     }
+     makeSmoothPart(x, y, eta, charge, -rap_beam, false);
+     //fout << x << " " << y << " " << z << " " << r << " " << eta << endl;
     }
-    x -= b / 2;
-    z = z / gamma + z0_targ;
-    double eta = asinh(z * cosh(rap_beam) / tau0 + sinh(rap_beam)) - rap_beam;
-    int charge = i < targZ ? 1 : 0;
-    nucleons[iev].push_back(Nucleon(x, y, eta, -rap_beam, charge));
-    makeSmoothPart(x, y, eta, charge, -rap_beam, false);
-    //fout << x << " " << y << " " << z << " " << r << " " << eta << endl;
    }
   }
  }
@@ -367,14 +389,22 @@ void IC3F::makeSmoothPart(double x, double y, double eta, int Charge, double rap
       weight = 0.0;
      }
      if (isProjectile) {
+#pragma omp atomic
       T00_p[ix][iy][iz] += weight * mN * cosh(rap - eta + zdiff);
+#pragma omp atomic
       T0z_p[ix][iy][iz] += weight * mN * sinh(rap - eta + zdiff);
+#pragma omp atomic
       QB_p[ix][iy][iz] += weight;
+#pragma omp atomic
       QE_p[ix][iy][iz] += Charge * weight;
      } else {
+#pragma omp atomic
       T00_t[ix][iy][iz] += weight * mN * cosh(rap - eta + zdiff);
+#pragma omp atomic
       T0z_t[ix][iy][iz] += weight * mN * sinh(rap - eta + zdiff);
+#pragma omp atomic
       QB_t[ix][iy][iz] += weight;
+#pragma omp atomic
       QE_t[ix][iy][iz] += Charge * weight;
      }
      //}
