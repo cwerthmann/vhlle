@@ -25,9 +25,9 @@ private:
  int compress2dOut;
  std::ofstream fkw, fkw_dim, fxvisc, fyvisc, fdiagvisc, fx,
    fy, fdiag, fz, faniz, f2d, ffreeze;
- char* fluidsuffix;
 
 public:
+ char* fluidsuffix;
  Fluid(EoS *_eos, EoS *_eosH, TransportCoeff *_trcoeff, int _nx, int _ny,
        int _nz, double _minx, double _maxx, double _miny, double _maxy,
        double _minz, double _maxz, double dt, double eCrit);

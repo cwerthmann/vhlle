@@ -946,18 +946,22 @@ void Hydro::performStep(void) {
     c->clearFlux();
    }
  // X dir
+ if(f->fluidsuffix[0]=='f') {
  for (int iy = 0; iy < f->getNY(); iy++)
   for (int iz = 0; iz < f->getNZ(); iz++)
    for (int ix = 0; ix < f->getNX() - 1; ix++) {
     hlle_flux(f->getCell(ix, iy, iz), f->getCell(ix + 1, iy, iz), X_, PREDICT);
    }
+ }
  //	cout << "predictor X done\n" ;
  // Y dir
+ if(f->fluidsuffix[0]=='f') {
  for (int iz = 0; iz < f->getNZ(); iz++)
   for (int ix = 0; ix < f->getNX(); ix++)
    for (int iy = 0; iy < f->getNY() - 1; iy++) {
     hlle_flux(f->getCell(ix, iy, iz), f->getCell(ix, iy + 1, iz), Y_, PREDICT);
    }
+ }
  //	cout << "predictor Y done\n" ;
  // Z dir
  for (int ix = 0; ix < f->getNX(); ix++)
@@ -980,18 +984,22 @@ void Hydro::performStep(void) {
 
  tau_z = dt / log(1 + dt / tau);
  // X dir
+ if(f->fluidsuffix[0]=='f') {
  for (int iy = 0; iy < f->getNY(); iy++)
   for (int iz = 0; iz < f->getNZ(); iz++)
    for (int ix = 0; ix < f->getNX() - 1; ix++) {
     hlle_flux(f->getCell(ix, iy, iz), f->getCell(ix + 1, iy, iz), X_, CORRECT);
    }
+ }
  //	cout << "corrector X done\n" ;
  // Y dir
+ if(f->fluidsuffix[0]=='f') {
  for (int iz = 0; iz < f->getNZ(); iz++)
   for (int ix = 0; ix < f->getNX(); ix++)
    for (int iy = 0; iy < f->getNY() - 1; iy++) {
     hlle_flux(f->getCell(ix, iy, iz), f->getCell(ix, iy + 1, iz), Y_, CORRECT);
    }
+ }
  //	cout << "corrector Y done\n" ;
  // Z dir
  for (int ix = 0; ix < f->getNX(); ix++)
