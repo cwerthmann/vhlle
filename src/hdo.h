@@ -15,6 +15,8 @@ private:
  double tau_z;    // effective value of the proper time used in 1/tau factors in
                   // the fluxes. Used to increase the accuracy
  const double tiny_density = 1e-9;  // energy desnity threshold to start computing viscous corrections
+std::vector<double> EviscLoss;
+double EfluxLoss;
 public:
  Hydro(Fluid *_f, EoS *_eos, TransportCoeff *_trcoeff, double _t0, double _dt);
  ~Hydro();

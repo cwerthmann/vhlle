@@ -177,6 +177,7 @@ MultiHydro::MultiHydro(Fluid *_f_p, Fluid *_f_t, Fluid *_f_f, Hydro *_h_p,
   cout << p << " " << totalScatRate(p, 0.12, 0.3, u) << endl;
  }
  exit(1);*/
+ EfrictLoss = 0.;
 }
 
 MultiHydro::~MultiHydro() {
@@ -311,6 +312,7 @@ void MultiHydro::performStep()
 
 void MultiHydro::frictionSubstep()
 {
+ const double dV = f_f->getDx() * f_f->getDy() * f_f->getDz();
  double mindtaufric=dtau;
  int NLimitedFriction=0;
  int Nunphys=0;
@@ -836,9 +838,9 @@ void MultiHydro::frictionSubstep()
      (flux_t[2]+flux_tf[2])*taut, (flux_t[3]+flux_tf[3])*taut, (nbflux_t+nbflux_tf)*taut, 0., 0.);
     c_f->addFlux((-flux_pf[0]-flux_tf[0]-flux_p[0]-flux_t[0])*tauf, (-flux_pf[1]-flux_tf[1]-flux_p[1]-flux_t[1])*tauf,
      (-flux_pf[2]-flux_tf[2]-flux_p[2]-flux_t[2])*tauf, (-flux_pf[3]-flux_tf[3]-flux_p[3]-flux_t[3])*tauf, (-nbflux_pf-nbflux_tf-nbflux_p-nbflux_t)*tauf, 0., 0.);
-    c_p->updateByFrictionFlux();
-    c_t->updateByFrictionFlux();
-    c_f->updateByFrictionFlux();
+    EfrictLoss += c_p->updateByFrictionFlux() * dV;
+    EfrictLoss += c_t->updateByFrictionFlux() * dV;
+    EfrictLoss += c_f->updateByFrictionFlux() * dV;
     c_p->clearFlux();
     c_t->clearFlux();
     c_f->clearFlux();

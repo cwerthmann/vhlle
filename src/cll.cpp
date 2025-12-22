@@ -93,30 +93,37 @@ void Cell::importVars(Cell* c) {
  viscCorrCut = c->getViscCorrCutFlag();
 }
 
-void Cell::updateByFlux() {
+double Cell::updateByFlux() {
  if(Q[0]+flux[0]<0.)
-  return;
+  return flux[0];
  for (int i = 0; i < 7; i++) Q[i] += flux[i];
+ return 0.;
 }
 
-void Cell::updateByViscFlux() {
+std::array<double, 7> Cell::updateByViscFlux() {
+ std::array<double, 7> residual = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
  if(fabs(flux[0]) <= 0.5*Q[0]) {
   for (int i = 0; i < 7; i++) Q[i] += flux[i];
- } else if (flux[0]!=0.){
-  double fac;
-  fac = fabs(0.5*Q[0]/flux[0]);
-  for (int i = 0; i < 7; i++) Q[i] += fac*flux[i];
+  // residual remains zero
+ } else if (flux[0]!=0.) {
+  double fac = fabs(0.5*Q[0]/flux[0]);
+  for (int i = 0; i < 7; i++) {
+   Q[i] += fac*flux[i];
+   residual[i] = (1.0 - fac) * flux[i];
+  }
  }
+ return residual;
 }
 
-void Cell::updateByFrictionFlux() {
+double Cell::updateByFrictionFlux() {
  if(Q[0]+flux[0]<0.)
-  return;
+  return flux[0];
  for (int i = 0; i < 7; i++) Q[i] += flux[i];
 // --- rescaling the pi^{mu nu}
  if(flux[0]<0.) {
   for(int i=0; i<10; i++)
    pi[i] *= (1. + flux[0]/Q[0]);
+  Pi *= (1. + flux[0]/Q[0]);
  }
 // --- limiting the pi^{mu nu}
  double maxT0 = 0., maxpi = 0.;
@@ -127,7 +134,9 @@ void Cell::updateByFrictionFlux() {
  if(maxpi>1.0*maxT0) {
   for(int i=0; i<10; i++)
    pi[i] = pi[i]*maxT0/maxpi*1.0;
+  Pi = Pi*maxT0/maxpi*1.0;
  }
+ return 0.;
 }
 
 void Cell::updateQtoQhByFlux() {

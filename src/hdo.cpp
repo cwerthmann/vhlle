@@ -55,6 +55,8 @@ Hydro::Hydro(Fluid *_f, EoS *_eos, TransportCoeff *_trcoeff, double _t0,
  f = _f;
  dt = _dt;
  tau = _t0;
+ EfluxLoss = 0.;
+ EviscLoss.resize(7, 0.0); // 7 components for viscous loss
 }
 
 Hydro::~Hydro() {}
@@ -847,9 +849,9 @@ void Hydro::ISformal() {
       }
      rescaled = true;
     }
-    if (fabs(Pi) > p) {
-     if (Pi != 0.) Pi = 1 * Pi / fabs(Pi) * p;     //modified .1 -> 1
-     if (PiH != 0.) PiH = 1 * PiH / fabs(PiH) * p; //modified .1 -> 1
+    if (fabs(Pi) > 0.5*p) {
+     if (Pi != 0.) Pi = 0.5 * Pi / fabs(Pi) * p;     //modified .1 -> 0.5
+     if (PiH != 0.) PiH = 0.5 * PiH / fabs(PiH) * p; //modified .1 -> 0.5
      rescaled = true;
     }
     if (rescaled)
@@ -932,6 +934,7 @@ void Hydro::visc_flux(Cell *left, Cell *right, int direction) {
 
 void Hydro::performStep(void) {
  // debugRiemann = false ; // turn off debug output
+ const double dV = f->getDx() * f->getDy() * f->getDz();
 
  f->updateM(tau, dt);
 
@@ -1014,7 +1017,7 @@ void Hydro::performStep(void) {
    for (int ix = 0; ix < f->getNX(); ix++) {
     Cell *c = f->getCell(ix, iy, iz);
     source_step(ix, iy, iz, CORRECT);
-    c->updateByFlux();
+    EfluxLoss += c->updateByFlux() * dV;
     c->clearFlux();
    }
  tau += dt;
@@ -1049,9 +1052,18 @@ void Hydro::performStep(void) {
    for (int iz = 0; iz < f->getNZ(); iz++)
     for (int ix = 0; ix < f->getNX(); ix++) {
      visc_source_step(ix, iy, iz);
-     f->getCell(ix, iy, iz)->updateByViscFlux();
+    std::array<double, 7> dViscLoss = f->getCell(ix, iy, iz)->updateByViscFlux();
+    for (size_t i = 0; i < dViscLoss.size(); ++i) {
+        EviscLoss[i] += dViscLoss[i] * dV;
+    }
      f->getCell(ix, iy, iz)->clearFlux();
     }
+  cout << "flux energy loss:  " << EfluxLoss << endl;
+  cout << "visc energy loss: ";
+  for (size_t i = 0; i < EviscLoss.size(); ++i) {
+    cout << setw(13) << EviscLoss[i] << " ";
+  }
+  cout << endl;
  } else {  // end viscous part
  }
  //==== finishing work ====
