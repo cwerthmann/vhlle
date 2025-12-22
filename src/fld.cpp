@@ -1099,9 +1099,11 @@ void Fluid::CheckEoSPhysicality(double tau){
 }
 
 
-void Fluid::computeTotals(double tau, double &E, double &Nb1, double &Nb2) {
+void Fluid::computeTotals(double tau, double &E, double &E2_id, double &E2_full, double &Nb1, double &Nb2) {
  double e, p, nb, nq, ns, t, mub, muq, mus, vx, vy, vz, Q[7];
  E = 0.;
+ E2_id = 0.;
+ E2_full = 0.;
  Nb1 = 0.;
  Nb2 = 0.;
  double eta = 0;
@@ -1116,14 +1118,22 @@ void Fluid::computeTotals(double tau, double &E, double &Nb1, double &Nb2) {
     eta = getZ(iz);
     const double cosh_int = (sinh(eta + 0.5 * dz) - sinh(eta - 0.5 * dz)) / dz;
     const double sinh_int = (cosh(eta + 0.5 * dz) - cosh(eta - 0.5 * dz)) / dz;
-    E += tau * (e + p) / (1. - vx * vx - vy * vy - tanh(vz) * tanh(vz)) *
+    E += tau * (e + p + c->getPi()) / (1. - vx * vx - vy * vy - tanh(vz) * tanh(vz)) *
              (cosh_int - tanh(vz) * sinh_int) -
-         tau * p * cosh_int;
+         tau * (p + c->getPi()) * cosh_int +
+         tau * c->getpi(0, 0) * cosh_int + tau * c->getpi(0, 3) * sinh_int ;
+    E2_id += Q[0] * cosh_int + Q[3] * sinh_int ;
+    E2_full += Q[0] * cosh_int + Q[3] * sinh_int +
+               tau * (c->getPi()) / (1. - vx * vx - vy * vy - tanh(vz) * tanh(vz)) *
+             (cosh_int - tanh(vz) * sinh_int) - tau * c->getPi() * cosh_int +
+         tau * c->getpi(0, 0) * cosh_int + tau * c->getpi(0, 3) * sinh_int ;
     Nb1 += Q[NB_];
     Nb2 += tau * nb * (cosh_int - tanh(vz) * sinh_int) /
            sqrt(1. - vx * vx - vy * vy - tanh(vz) * tanh(vz));
    }
  E = E * dx * dy * dz;
+ E2_id = E2_id * dx * dy * dz;
+ E2_full = E2_full * dx * dy * dz;
  Nb1 *= dx * dy * dz;
  Nb2 *= dx * dy * dz;
 }

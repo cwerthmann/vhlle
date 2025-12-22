@@ -35,6 +35,7 @@ class MultiHydro {
  double EtotSurf[3] = {0., 0., 0.}, EtotSurf_positive[3] = {0., 0., 0.},
      EtotSurf_negative[3] = {0., 0., 0.};
  std::vector<std::vector<Nucleon>> nucleons;
+ double EfrictLoss;
 
 public:
  MultiHydro(Fluid *f_p, Fluid *f_t, Fluid *f_f, Hydro *h_p, Hydro *h_t,

@@ -942,14 +942,19 @@ void MultiHydro::frictionSubstep()
   if (formationTime < 0) formationTime = 0;
  }
  //================ checking total energies
- double Ep, Et, Ef, Nb1p, Nb1t, Nb1f, Nb2p, Nb2t, Nb2f;
- f_p->computeTotals(h_p->getTau(), Ep, Nb1p, Nb2p);
- f_t->computeTotals(h_t->getTau(), Et, Nb1t, Nb2t);
- f_f->computeTotals(h_f->getTau(), Ef, Nb1f, Nb2f);
- cout << setw(23) << "TOTAL ENERGY,Nb1,Nb2: " << setw(14) << Ep+Et+Ef << setw(14) << Nb1p+Nb1t+Nb1f << setw(14) << Nb2p+Nb2t+Nb2f << endl;
- cout << setw(23) << "p part: " << setw(14) << Ep << setw(14) << Nb1p << setw(14) << Nb2p << endl;
- cout << setw(23) << "t part: " << setw(14) << Et << setw(14) << Nb1t << setw(14) << Nb2t << endl;
- cout << setw(23) << "f part: " << setw(14) << Ef << setw(14) << Nb1f << setw(14) << Nb2f << endl;
+ double Ep, Et, Ef, Nb1p, Nb1t, Nb1f, Nb2p, Nb2t, Nb2f, E2_id_p, E2_id_t, E2_id_f, E2_full_p, E2_full_t, E2_full_f;
+ f_p->computeTotals(h_p->getTau(), Ep, E2_id_p, E2_full_p, Nb1p, Nb2p);
+ f_t->computeTotals(h_t->getTau(), Et, E2_id_t, E2_full_t, Nb1t, Nb2t);
+ f_f->computeTotals(h_f->getTau(), Ef, E2_id_f, E2_full_f, Nb1f, Nb2f);
+ cout << setw(23) << "TOT ENERGIES,Nb1,Nb2: " << setw(14) << Ep+Et+Ef << setw(14) << E2_id_p+E2_id_t+E2_id_f
+  << setw(14) << E2_full_p+E2_full_t+E2_full_f << setw(14) << Nb1p+Nb1t+Nb1f << setw(14) << Nb2p+Nb2t+Nb2f << endl;
+ cout << setw(23) << "p part: " << setw(14) << Ep << setw(14) << E2_id_p << setw(14) << E2_full_p
+  << setw(14) << Nb1p << setw(14) << Nb2p << endl;
+ cout << setw(23) << "t part: " << setw(14) << Et << setw(14) << E2_id_t << setw(14) << E2_full_t
+  << setw(14) << Nb1t << setw(14) << Nb2t << endl;
+ cout << setw(23) << "f part: " << setw(14) << Ef << setw(14) << E2_id_f << setw(14) << E2_full_f
+  << setw(14) << Nb1f << setw(14) << Nb2f << endl;
+ cout << "energy loss in friction:  " << EfrictLoss << endl;
 }
 
 void MultiHydro::addRetardedFriction(double flux, double x, double y, double z, double t, int i)
