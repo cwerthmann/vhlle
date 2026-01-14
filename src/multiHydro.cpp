@@ -28,7 +28,7 @@ using namespace std;
 MultiHydro::MultiHydro(Fluid *_f_p, Fluid *_f_t, Fluid *_f_f, Hydro *_h_p,
  Hydro *_h_t, Hydro *_h_f, EoS *_eos, TransportCoeff *_trcoeff, double _dtau,
  double eCrit, double _sNN, double _Etot, double _xi_fa, double _lambda, double _formationTime,
- int _frictionModel, int _decreasingFormTime, double _xi_q, double _xi_h, double _alpha, double _beta, int _unification, int _physicality_limiter, double _tau_unification, int _NTemp, int _Nvatilde, double _Tmax, int _xsectparam, std::vector<std::vector<Nucleon>> nucl)
+ int _frictionModel, int _decreasingFormTime, double _xi_q, double _xi_h, double _alpha, double _beta, int _unification, int _physicality_limiter, double _tau_unification, int _NTemp, int _Nvatilde, double _Tmax, int _xsectparam, std::vector<std::vector<Nucleon>> nucl, int _verbose)
 {
  f_p = _f_p;
  f_t = _f_t;
@@ -75,6 +75,7 @@ MultiHydro::MultiHydro(Fluid *_f_p, Fluid *_f_t, Fluid *_f_f, Hydro *_h_p,
  EfIfilename.append(".dat");
 
  nucleons = nucl;
+ verbose=_verbose;
 
  //---- Cornelius init
  double arrayDx[4] = {h_p->getDtau(), f_p->getDx(), f_p->getDy(), f_p->getDz()};
@@ -620,24 +621,12 @@ void MultiHydro::frictionSubstep()
 
     //friction limiter
 
-    /*if(ix==f_p->getNX()/2&&iy==f_p->getNY()/2&&abs(iz-f_p->getNZ()/2)<1){
-        cout << iz << setw(14) << ep << setw(14) << e_p_new << setw(14) <<nbp <<setw(14)<<nb_p_new<< setw(14) << ep/mN/nbp << setw(14) << e_p_new/mN/nb_p_new << setw(14) << pp <<setw(14) <<p_p_new<< endl;
-        cout << flux_p[0] << setw(14)<< flux_p[1] << setw(14)<< flux_p[2] << setw(14)<< flux_p[3] << setw(14) << nbflux_p << endl;
-        cout << up[0] << setw(14) << up[1] << setw(14) << up[2] <<setw(14)<<up[3]<<setw(14)<< 1/mN <<endl;
-        cout << _Q_p[0] << setw(14) << _Q_p[1] << setw(14) << _Q_p[2] << setw(14) << _Q_p[3] << setw(14) << _Q_p[NB_] << endl;
-        cout << taup*((ep+pp)*up[0]*up[0]-pp) << setw(14) << taup*((ep+pp)*up[0]*up[1]) << setw(14)<< taup*((ep+pp)*up[0]*up[2]) << setw(14)<< taup*((ep+pp)*up[0]*up[3]) << setw(14) << taup*gammap*nbp << endl;
-    }*/
 
           EtotFriction+=abs(flux_p[0]+flux_pf[0])+abs(flux_t[0]+flux_tf[0]);
             Nbpsub=abs(nbflux_p);
             Nbtsub=abs(nbflux_t);
             Nbpfsub=abs(nbflux_pf);
             Nbtfsub=abs(nbflux_tf);
-   //double energy_balance=min(e_p_new-1.2*mN*nb_p_new,min(e_t_new-1.2*mN*nb_t_new,e_f_new-1.2*mN*nb_f_new));
-   //if (energy_balance >= 0 &&
-       //if(_Q_p[T_] + (flux_p[0]+flux_pf[0])*taup >= 0 &&
-      // _Q_t[T_] + (flux_t[0]+flux_tf[0])*taut >= 0 &&
-      // _Q_f[T_] + (-flux_pf[0]-flux_tf[0]+flux_f[0])*tauf >= 0) {
         if(_Q_p[T_] + (flux_p[0]+flux_pf[0])*taup < 0||_Q_t[T_] + (flux_t[0]+flux_tf[0])*taut < 0||_Q_f[T_] + (-flux_pf[0]-flux_tf[0]-flux_p[0]-flux_t[0])*tauf < 0){
           EtotLimited+=abs(flux_p[0]+flux_pf[0])+abs(flux_t[0]+flux_tf[0]);
          }
@@ -727,12 +716,6 @@ void MultiHydro::frictionSubstep()
     transformPV(eos,Q_f_new,e_f_new,p_f_new,nb_f_new,nq_new,ns_new,vx_f_new,vy_f_new,vz_f_new,false);
 
 
-
-       /*if(e_p_new<mN*nb_p_new||e_t_new<mN*nb_t_new){
-         EtotLimited+=abs(flux_p[0]+flux_pf[0])+abs(flux_t[0]+flux_tf[0]);
-       }*/
-
-
         if(physicality_limiter==1&&e_p_new<0.98*mN*nb_p_new){
          Nunphys++;
             Nbpsub=0.0;
@@ -814,22 +797,6 @@ void MultiHydro::frictionSubstep()
     Nblim+=Nbplimsub+Nbtlimsub;
     Nbphyslim+=Nbpphyslimsub+Nbtphyslimsub;
     Nbuni+=Nbpunisub+Nbtunisub;
-   /*} else {
-        NLimitedFriction++;
-        ELimitedFriction+=abs(flux_t[0]+flux_tf[0])+abs(flux_p[0]+flux_pf[0]);
-        for(int i=0;i<4;i++){
-            flux_f[i]=0;
-            flux_p[i]=0;
-            flux_t[i]=0;
-            flux_pf[i]=0;
-            flux_tf[i]=0;
-        }
-        nbflux_f=0;
-        nbflux_p=0;
-        nbflux_t=0;
-        nbflux_pf=0;
-        nbflux_tf=0;
-   }*/
    }else{
     if(dtaufric==dtau){
     NSkip++;
@@ -891,31 +858,33 @@ void MultiHydro::frictionSubstep()
    ffricy << endl;
    ffricz << endl;
  clearRetardedFriction();
- cout << "Friction update done at tau="<<h_p->getTau()<<", average loop number: "<<1.0*(Nloop-NSkip)/(f_p->getNX()*f_p->getNY()*f_p->getNZ()-NSkip)<<", smallest dtaufric: "<<mindtaufric<<"."<<endl;
- cout << "skipped friction due to small energy density of target and projectile in "<< NSkip << " cells ("<< 100.0*NSkip/f_p->getNX()/f_p->getNY()/f_p->getNZ() << "%)"<<endl;
- cout << "friction limited "<<NLimitedFriction<<" times (" << 100.0*NLimitedFriction/3/(Nloop-NSkip) << "%), total dropped energy transfer of "
-        << ELimitedFriction*h_p->getTau()*dx*dy*dz << " (" <<100.0*ELimitedFriction/EtotFriction<<"%)"<< endl;
- cout << "friction adjusted in " << Nunphys << " unphysical fluid cells (" << 100.0*Nunphys/2/(Nloop-NSkip) <<"%, "<< 100.0*Eunphys/Etotloopspt <<"% of energy in p+t)" << endl;
-// <<"), of which only partially dropped: "<< 100.0*NPartiallyLimitedFriction/Nloop <<"% ("<<NPartiallyLimitedFriction<<" times, total energy transfer of "<< EPartiallyLimitedFriction*h_p->getTau()*dx*dy*dz <<")"<<endl;
- if(EtotLimited>0){
- cout << "average local fraction of dropped energy transfer: "<< 100.0*ELimitedFriction/EtotLimited << "%"<<endl;
- }
- double Nbtranstot=Nbpt+Nbf+Nblim+Nbphyslim+Nbuni;
- cout << "Nb transfer: total "<<Nbtranstot<<", p-t "<<Nbpt<<" ("<<100.0*Nbpt/Nbtranstot<<"%)"<<", f "<<Nbf<<" ("<<100.0*Nbf/Nbtranstot<<"%)"
-        <<", limiter "<<Nblim<<" ("<<100.0*Nblim/Nbtranstot<<"%)"<<", physicality limiter "<<Nbphyslim<<" ("<<100.0*Nbphyslim/Nbtranstot<<"%)"<<", unification "<<Nbuni<<" ("<<100.0*Nbuni/Nbtranstot<<"%)"<<endl;
  if (decreasingFormTime == 1) {
   formationTime -= dtau * dtauf;
   if (formationTime < 0) formationTime = 0;
  }
- //================ checking total energies
- double Ep, Et, Ef, Nb1p, Nb1t, Nb1f, Nb2p, Nb2t, Nb2f;
- f_p->computeTotals(h_p->getTau(), Ep, Nb1p, Nb2p);
- f_t->computeTotals(h_t->getTau(), Et, Nb1t, Nb2t);
- f_f->computeTotals(h_f->getTau(), Ef, Nb1f, Nb2f);
- cout << setw(23) << "TOTAL ENERGY,Nb1,Nb2: " << setw(14) << Ep+Et+Ef << setw(14) << Nb1p+Nb1t+Nb1f << setw(14) << Nb2p+Nb2t+Nb2f << endl;
- cout << setw(23) << "p part: " << setw(14) << Ep << setw(14) << Nb1p << setw(14) << Nb2p << endl;
- cout << setw(23) << "t part: " << setw(14) << Et << setw(14) << Nb1t << setw(14) << Nb2t << endl;
- cout << setw(23) << "f part: " << setw(14) << Ef << setw(14) << Nb1f << setw(14) << Nb2f << endl;
+ if(verbose==1){
+  cout << "Friction update done at tau="<<h_p->getTau()<<", average loop number: "<<1.0*(Nloop-NSkip)/(f_p->getNX()*f_p->getNY()*f_p->getNZ()-NSkip)<<", smallest dtaufric: "<<mindtaufric<<"."<<endl;
+  cout << "skipped friction due to small energy density of target and projectile in "<< NSkip << " cells ("<< 100.0*NSkip/f_p->getNX()/f_p->getNY()/f_p->getNZ() << "%)"<<endl;
+  cout << "friction limited "<<NLimitedFriction<<" times (" << 100.0*NLimitedFriction/3/(Nloop-NSkip) << "%), total dropped energy transfer of "
+        << ELimitedFriction*h_p->getTau()*dx*dy*dz << " (" <<100.0*ELimitedFriction/EtotFriction<<"%)"<<endl;
+  cout << "friction adjusted in " << Nunphys << " unphysical fluid cells (" << 100.0*Nunphys/2/(Nloop-NSkip) <<"%, "<< 100.0*Eunphys/Etotloopspt <<"% of energy in p+t)" << endl;
+  if(EtotLimited>0){
+   cout << "average local fraction of dropped energy transfer: "<< 100.0*ELimitedFriction/EtotLimited << "%"<<endl;
+  }
+  double Nbtranstot=Nbpt+Nbf+Nblim+Nbphyslim+Nbuni;
+  cout << "Nb transfer: total "<<Nbtranstot<<", p-t "<<Nbpt<<" ("<<100.0*Nbpt/Nbtranstot<<"%)"<<", f "<<Nbf<<" ("<<100.0*Nbf/Nbtranstot<<"%)"
+        <<", limiter "<<Nblim<<" ("<<100.0*Nblim/Nbtranstot<<"%)"<<", physicality limiter "<<Nbphyslim<<" ("<<100.0*Nbphyslim/Nbtranstot<<"%)"<<", unification "<<Nbuni<<" ("<<100.0*Nbuni/Nbtranstot<<"%)"<<endl;
+
+  //================ checking total energies
+  double Ep, Et, Ef, Nb1p, Nb1t, Nb1f, Nb2p, Nb2t, Nb2f;
+  f_p->computeTotals(h_p->getTau(), Ep, Nb1p, Nb2p);
+  f_t->computeTotals(h_t->getTau(), Et, Nb1t, Nb2t);
+  f_f->computeTotals(h_f->getTau(), Ef, Nb1f, Nb2f);
+  cout << setw(23) << "TOTAL ENERGY,Nb1,Nb2: " << setw(14) << Ep+Et+Ef << setw(14) << Nb1p+Nb1t+Nb1f << setw(14) << Nb2p+Nb2t+Nb2f << endl;
+  cout << setw(23) << "p part: " << setw(14) << Ep << setw(14) << Nb1p << setw(14) << Nb2p << endl;
+  cout << setw(23) << "t part: " << setw(14) << Et << setw(14) << Nb1t << setw(14) << Nb2t << endl;
+  cout << setw(23) << "f part: " << setw(14) << Ef << setw(14) << Nb1f << setw(14) << Nb2f << endl;
+ }
 }
 
 void MultiHydro::addRetardedFriction(double flux, double x, double y, double z, double t, int i)
@@ -1557,15 +1526,16 @@ int MultiHydro::findFreezeout(EoS* eosH)
      } // other cases when surface elements are retained for hadron sampling
     } // loop over segments from Cornelius
  } // the outer loop over fluid cells
-
- cout << setw(10) << h_p->getTau() << setw(10) << nelements << "\t" << ne_pos << "\t"
-      << EtotSurf[0] << "\t" << EtotSurf_positive[0] << "\t" << EtotSurf_negative[0] << "\t"
-      << EtotSurf[1] << "\t" << EtotSurf_positive[1] << "\t" << EtotSurf_negative[1] << "\t"
-      << EtotSurf[2] << "\t" << EtotSurf_positive[2] << "\t" << EtotSurf_negative[2] << endl;
- cout << "flow through recorded surface elements (Etot[p,t,f,SUM], Nbtot[p,t,f,SUM]):  \n";
- cout << setw(14) << Etot_to_sampler[0] << setw(14) << Etot_to_sampler[1] << setw(14) << Etot_to_sampler[2] << setw(14) << Etot_to_sampler[0] + Etot_to_sampler[1] + Etot_to_sampler[2] << endl;
- cout << setw(14) << Nbtot_to_sampler[0] << setw(14) << Nbtot_to_sampler[1] << setw(14) << Nbtot_to_sampler[2] << setw(14) << Nbtot_to_sampler[0] + Nbtot_to_sampler[1] + Nbtot_to_sampler[2] << endl;
- cout << "Dilute patches contain (Etot, Nbtot):  " << E_dilute << "  " << Nb_dilute << endl;
+ if( verbose == 1 ) {
+  cout << setw(10) << h_p->getTau() << setw(10) << nelements << "\t" << ne_pos << "\t"
+       << EtotSurf[0] << "\t" << EtotSurf_positive[0] << "\t" << EtotSurf_negative[0] << "\t"
+       << EtotSurf[1] << "\t" << EtotSurf_positive[1] << "\t" << EtotSurf_negative[1] << "\t"
+       << EtotSurf[2] << "\t" << EtotSurf_positive[2] << "\t" << EtotSurf_negative[2] << endl;
+  cout << "flow through recorded surface elements (Etot[p,t,f,SUM], Nbtot[p,t,f,SUM]):  \n";
+  cout << setw(14) << Etot_to_sampler[0] << setw(14) << Etot_to_sampler[1] << setw(14) << Etot_to_sampler[2] << setw(14) << Etot_to_sampler[0] + Etot_to_sampler[1] + Etot_to_sampler[2] << endl;
+  cout << setw(14) << Nbtot_to_sampler[0] << setw(14) << Nbtot_to_sampler[1] << setw(14) << Nbtot_to_sampler[2] << setw(14) << Nbtot_to_sampler[0] + Nbtot_to_sampler[1] + Nbtot_to_sampler[2] << endl;
+  cout << "Dilute patches contain (Etot, Nbtot):  " << E_dilute << "  " << Nb_dilute << endl;
+ }
  swap(eos, eosH); // get back to the hydrodynamic EoS
  for (int i1 = 0; i1 < 2; i1++) {
   for (int i2 = 0; i2 < 2; i2++) {

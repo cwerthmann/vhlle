@@ -58,6 +58,7 @@ int icModel,glauberVariable =1;  // icModel=1 for pure Glauber, 2 for table inpu
 double Rgt = 1.0, Rgz;
 double xi_fa = 0.15, lambda = 1.0, formationTime = 0.0, xi_q = 30.0, xi_h = 1.8, alphaxs=0.5, betaxs=0.5, tau_unification=0.2, Tmax=1.0;
 int frictionModel = 1, decreasingFormTime = 0, adaptiveTimestep=0, unification=1, physicality_limiter=1, NTemp=1024, Nvatilde=1024, xsectparam=1;
+int verbose=0;
 
 double snn, b_min, b_max, Etot;
 int projA, targA, projZ, targZ;
@@ -191,6 +192,8 @@ void readParameters(char *parFile) {
    eEtaSMin = atof(parValue);
   else if (strcmp(parName, "etaSMin") == 0)
    etaSMin = atof(parValue);
+  else if (strcmp(parName, "verbose") == 0)
+   verbose = atoi(parValue);
   else if (parName[0] == '!')
    cout << "CCC " << sline.str() << endl;
   else
@@ -489,7 +492,7 @@ if(adaptiveTimestep==1){
  time(&start);
  // h->setNSvalues() ; // initialize viscous terms
 
- mh = new MultiHydro(f_p, f_t, f_f, h_p, h_t, h_f, eos, trcoeff, dtau, eCrit, snn, Etot, xi_fa, lambda, formationTime, frictionModel, decreasingFormTime, xi_q, xi_h, alphaxs, betaxs, unification, physicality_limiter, tau_unification, NTemp, Nvatilde, Tmax, xsectparam, nucleons);
+ mh = new MultiHydro(f_p, f_t, f_f, h_p, h_t, h_f, eos, trcoeff, dtau, eCrit, snn, Etot, xi_fa, lambda, formationTime, frictionModel, decreasingFormTime, xi_q, xi_h, alphaxs, betaxs, unification, physicality_limiter, tau_unification, NTemp, Nvatilde, Tmax, xsectparam, nucleons, verbose);
 
  f_p->initOutput(outputDir.c_str(), tau0, "proj");
  f_t->initOutput(outputDir.c_str(), tau0, "targ");

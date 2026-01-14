@@ -37,12 +37,13 @@ class MultiHydro {
  double EtotSurf[3] = {0., 0., 0.}, EtotSurf_positive[3] = {0., 0., 0.},
      EtotSurf_negative[3] = {0., 0., 0.};
  std::vector<std::vector<Nucleon>> nucleons;
+ int verbose;
 
 public:
  MultiHydro(Fluid *f_p, Fluid *f_t, Fluid *f_f, Hydro *h_p, Hydro *h_t,
   Hydro* h_f, EoS *eos, TransportCoeff *trcoeff, double dtau, double eCrit, double sNN, double Etot,
   double xi_fa, double lambda, double formationTime, int frictionModel, int decreasingFormTime,
-  double xi_q, double xi_h, double alpha, double beta, int unification, int physicality_limiter, double tau_unification, int NTemp, int Nvatilde, double Tmax, int xsectparam, std::vector<std::vector<Nucleon>> nucl);
+  double xi_q, double xi_h, double alpha, double beta, int unification, int physicality_limiter, double tau_unification, int NTemp, int Nvatilde, double Tmax, int xsectparam, std::vector<std::vector<Nucleon>> nucl, int verbose);
  ~MultiHydro(void);
  void setDtau(double newdtau);
  void initOutput(const char *dir);
