@@ -56,8 +56,8 @@ string collSystem, outputDir, isInputFile;
 double etaS, zetaS, eCrit = 0.5, eEtaSMin, al, ah, aRho, T0, etaSMin;
 int icModel,glauberVariable =1;  // icModel=1 for pure Glauber, 2 for table input (Glissando etc)
 double Rgt = 1.0, Rgz;
-double xi_fa = 0.15, lambda = 1.0, formationTime = 0.0, xi_q = 30.0, xi_h = 1.8, alphaxs=0.5, betaxs=0.5, tau_unification=0.2, Tmax=1.0;
-int frictionModel = 1, decreasingFormTime = 0, adaptiveTimestep=0, unification=1, physicality_limiter=1, NTemp=1024, Nvatilde=1024, xsectparam=1;
+double xi_fa = 0.1, lambda = 1.0, formationTime = 0.0, xi_q = 30.0, xi_h = 1.0, alphaxs=0.7, betaxs=0.1, tau_unification=0.2, Tmax=1.0;
+int frictionModel = 4, decreasingFormTime = 0, adaptiveTimestep=0, unification=1, physicality_limiter=1, NTemp=1024, Nvatilde=1024, xsectparam=1;
 int verbose=0;
 
 double snn, b_min, b_max, Etot;
