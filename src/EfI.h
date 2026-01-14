@@ -7,6 +7,6 @@ private:
     CrossSections *xsect;
 public:
     EfIntegrand(CrossSections *_xsect, double _Tf, double _mubf, double _valphatilde);
-    double EvalNpi(double s);
-    double EvalNN(double s);
+    double EvalNpi_to_f(double p);
+    double EvalNpi_to_pt(double p);
 };

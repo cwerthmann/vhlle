@@ -111,14 +111,12 @@ MultiHydro::MultiHydro(Fluid *_f_p, Fluid *_f_t, Fluid *_f_f, Hydro *_h_p,
   EfIoutstream.open(EfIfilename);
   EfIoutstream<<setprecision(15);
 
-  //double smin=pow(mN+mpi,2), smax;
   double pmin=mpi, pmax;
   ROOT::Math::GaussIntegrator GI;
   GI.SetRelTolerance(1e-5);
   double vatilde=0.0;
   double gammaatilde=1.0;
   double Tf=0.0;
-  double zeta3 = 1.20205690315959;
 
   int progresslast=0;
   int progress=0;
@@ -131,15 +129,16 @@ MultiHydro::MultiHydro(Fluid *_f_p, Fluid *_f_t, Fluid *_f_f, Hydro *_h_p,
    for(int iT=0;iT<NTemp;iT++){
     Tf=Tmax*iT/(NTemp-1);
     EfIntegrand EfI(xsect,Tf,0.0,vatilde);
-    ROOT::Math::Functor1D func(&EfI,&EfIntegrand::EvalNpi);
-    GI.SetFunction(func);
+    ROOT::Math::Functor1D func1(&EfI,&EfIntegrand::EvalNpi_to_f);
+    ROOT::Math::Functor1D func2(&EfI,&EfIntegrand::EvalNpi_to_pt);
+    GI.SetFunction(func1);
+    if (xsectparam==2) {
+     GI.SetFunction(func2);
+    }
 
-    //smax=20*mN*Tf/gammaatilde/(1-vatilde)+smin;
     pmax=10*Tf+pmin;
     EfITable[iv][iT]=GI.Integral(pmin,pmax);
     double saa=mN*mN+mpi*mpi+2.0*mN*mpi*gammaatilde;
-    //EfITable[iv][iT]=3.0/12.0*Tf*Tf*mN*mpi*sqrt(gammaatilde-1)*xsect->piN(sqrt(saa))*gevtofm*gevtofm*gevtofm;//13
-    //EfITable[iv][iT]=3.0*zeta3*Tf*Tf*Tf/M_PI/M_PI*mN*sqrt(gammaatilde-1)*xsect->piN(sqrt(saa))*gevtofm*gevtofm*gevtofm;//11
 
     EfIoutstream<<EfITable[iv][iT]<<endl;
    }
@@ -396,13 +395,12 @@ void MultiHydro::frictionSubstep()
     double vtsq=vxt*vxt+vyt*vyt+vzt*vzt;
     double vfvp=vxf*vxp+vyf*vyp+vzf*vzp;
     double vfvt=vxf*vxt+vyf*vyt+vzf*vzt;
-    //double vTf=2.0*TCf/mpi*(1.0+TCf/mpi)/expk2(mpi/TCf);
     double avggp=1.0/(1.0+TCp/mN)+3*TCp/mN;
     double vTp=sqrt(max(0.0,1.0-1.0/avggp/avggp));
     double avggt=1.0/(1.0+TCt/mN)+3*TCt/mN;
     double vTt=sqrt(max(0.0,1.0-1.0/avggt/avggt));
-    double vptilde=sqrt(max(0.0,1.0-(1.0-vfsq)*(1.0-vpsq)/(1.0-vfvp)/(1.0-vfvp)));//sqrt(abs(vfsq+vpsq-2.0*vfvp+vfvp*vfvp-vfsq*vpsq))/abs(1.0-vfvp);
-    double vttilde=sqrt(max(0.0,1.0-(1.0-vfsq)*(1.0-vtsq)/(1.0-vfvt)/(1.0-vfvt)));//sqrt(abs(vfsq+vtsq-2.0*vfvt+vfvt*vfvt-vfsq*vtsq))/abs(1.0-vfvt);
+    double vptilde=sqrt(max(0.0,1.0-(1.0-vfsq)*(1.0-vpsq)/(1.0-vfvp)/(1.0-vfvp)));
+    double vttilde=sqrt(max(0.0,1.0-(1.0-vfsq)*(1.0-vtsq)/(1.0-vfvt)/(1.0-vfvt)));
     double unification_factor_vp=0.0;
     if(vptilde/vTp<1e-5){
         unification_factor_vp=1-vptilde*vptilde/vTp/vTp-0.5*pow(vptilde/vTp,4);
@@ -550,73 +548,41 @@ void MultiHydro::frictionSubstep()
    // 2. projectile-fireball friction
    if(ep>0. && ef>0.) {
     double dens_p = xi_fa*nbp;
-    //double gammaptilde=1.0/std::sqrt(1.0-vptilde*vptilde);
     double EfNpi=MultiHydro::EfIeval(TCf,vptilde);
-    double EfNN=0.0;
-    //cerr << EfNpi<<" "<< dens_p <<" "<< TCf<<" " << mubCf<<" "<<vptilde<<" "<< xsect->piN(2*smin) <<endl;
-    /*if(frictionModel==2){
-        ROOT::Math::Functor1D func2(&EfI,&EfIntegrand::EvalNN);
-        GI.SetFunction(func2);
-        smin=pow(mN+mN,2);
-        EfNN=GI.Integral(smin,smax);
-    }*/
 
-    if(xsectparam<17){
-    for(int i=0; i<4; i++){//14
-     flux_pf[i] += -dens_p*up[i]*(EfNpi+EfNN);
+
+    if(xsectparam==1){
+    for(int i=0; i<4; i++){
+     flux_pf[i] += -dens_p*up[i]*EfNpi;
     }
-    nbflux_pf += -dens_p/mN*(EfNpi+EfNN);
+    nbflux_pf += -dens_p/mN*EfNpi;
 
-    }else if(xsectparam==17){
-    for(int i=0; i<4; i++){//17
-     flux_pf[i] += dens_p/mN*uf[i]*(EfNpi+EfNN);
+    }else if(xsectparam==2){
+    for(int i=0; i<4; i++){
+     flux_pf[i] += dens_p*uf[i]*EfNpi;
     }
     nbflux_pf += 0.0;
    }
 
    }
 
-    /*double upuf = gammap*gammaf*(1.0 - vxp*vxf - vyp*vyf - vzp*vzf);
-    double savgpf = 2.0*mN*mpi*uput+mN*mN+mpi*mpi;
-    double sigmaNpi=xsect->piN(std::sqrt(savg));
-    double Vrel = sqrt(uput*uput - 1.0);
-    // friction coefficient
-    double D_N = mN*Vrel*sigmaNpi;
-    for(int i=0; i<4; i++){
-      // Csernai Tmunu friction terms
-      flux_p[i] += -xi_fa*nb*up[i]*D_N*h_p->getDtau();
-     }
-     //Csernai nb friction terms
-      nbflux_p += -dens_p*dens_t/mN*D_N*h_p->getDtau();*/
-
 
 
    // 3. target-fireball friction
    if(et>0. && ef>0.) {
     double dens_t = xi_fa*nbt;
-    //double gammattilde=1.0/std::sqrt(1.0-vttilde*vttilde);
     double EfNpi=MultiHydro::EfIeval(TCf,vttilde);
-    double EfNN=0.0;
-    /*if(frictionModel==2){
-        ROOT::Math::Functor1D func2(&EfI,&EfIntegrand::EvalNN);
-        GI.SetFunction(func2);
-        smin=pow(mN+mN,2);
-        EfNN=GI.Integral(smin,smax);
-    }*/
-    if(xsectparam<17){
-    for(int i=0; i<4; i++){//14
-     flux_tf[i] += -dens_t*ut[i]*(EfNpi+EfNN);
+    if(xsectparam==1){
+     for(int i=0; i<4; i++){
+      flux_tf[i] += -dens_t*ut[i]*EfNpi;
+     }
+     nbflux_tf += -dens_t/mN*EfNpi;
+    }else if(xsectparam==2){
+     for(int i=0; i<4; i++){
+      flux_tf[i] += dens_t*uf[i]*EfNpi;
+     }
+     nbflux_tf += 0.0;
     }
-    nbflux_tf += -dens_t/mN*(EfNpi+EfNN);
-   }else if(xsectparam==17){
-
-    for(int i=0; i<4; i++){//17
-     flux_tf[i] += dens_t/mN*uf[i]*(EfNpi+EfNN);
-    }
-    nbflux_tf += 0.0;
-    }
-
-
    }
 
 

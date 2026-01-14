@@ -32,6 +32,8 @@ class MultiHydro {
  double tau_unification;
  const double gmunu[4][4] = {
      {1, 0, 0, 0}, {0, -1, 0, 0}, {0, 0, -1, 0}, {0, 0, 0, -1}};
+
+ const double zeta3 = 1.20205690315959;
  double EtotSurf[3] = {0., 0., 0.}, EtotSurf_positive[3] = {0., 0., 0.},
      EtotSurf_negative[3] = {0., 0., 0.};
  std::vector<std::vector<Nucleon>> nucleons;
