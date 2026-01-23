@@ -347,7 +347,7 @@ int main(int argc, char **argv) {
  readCommandLine(argc, argv);
  printParameters();
 
- if (xsectparam != 0 && xsectparam != 1) {
+ if (xsectparam != 1 && xsectparam != 2) {
   cout << "xsectparam != 1,2\n";
   return 0;
  }
