@@ -42,6 +42,7 @@
 #include "eoHadron.h"
 #include "eoHadronPH.h"
 #include "eoSmash.h"
+#include "eo2DTExS.h"
 #include "trancoeff.h"
 #include "multiHydro.h"
 #include "ic3F.h"
@@ -372,8 +373,10 @@ int main(int argc, char **argv) {
      eos = new EoSCMF();
  else if (eosType == 4)
      eos = new EoSCMFe();
+ else if (eosType == 5)
+    eos = new EoS2DTExS();
  else {
-  cout << "eosType != 0,1,2,3,4\n";
+  cout << "eosType != 0,1,2,3,4,5\n";
   return 0;
  }
 
