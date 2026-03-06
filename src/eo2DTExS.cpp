@@ -125,7 +125,7 @@ void EoS2DTExS_aux::get(double e, double nb, double& p, double& T, double& mub,
     T = mub = mus = p = 0.0;
     return;
  }
- double tildeMuB = 3.0 * baryonDensityGeV3 / (tildeT * tildeT); // based on https://arxiv.org/abs/2406.11610
+ double tildeMuB = 5.0 * baryonDensityGeV3 / (tildeT * tildeT); // based on https://arxiv.org/abs/2406.11610
 
  if (NtGrid < 2 || NmbGrid < 2) {
   T = mub = mus = p = 0.0;
