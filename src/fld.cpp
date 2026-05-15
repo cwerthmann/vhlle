@@ -144,6 +144,9 @@ void Fluid::initOutput(const char *dir, double tau0, char *suffix) {
  string out2d = dir;
  out2d.append("/out2D");
  out2d.append(suff);
+ string out3d = dir;
+ out3d.append("/out3D");
+ out3d.append(suff);
  string outfreeze = dir;
  outfreeze.append("/freezeout");
  outfreeze.append(suff);
@@ -152,6 +155,7 @@ void Fluid::initOutput(const char *dir, double tau0, char *suffix) {
  fz.open(outz.c_str());
  fdiag.open(outdiag.c_str());
  f2d.open(out2d.c_str());
+ f3d.open(out3d.c_str());
  fxvisc.open(outxvisc.c_str());
  fyvisc.open(outyvisc.c_str());
  fdiagvisc.open(outdiagvisc.c_str());
@@ -472,6 +476,23 @@ void Fluid::outputGnuplot(double tau) {
         << setw(14) << c->getViscCorrCutFlag() << endl;
  }
  f2d << endl;
+
+ // 3D
+ for (int ix = 0; ix < nx; ix+=2)
+ for (int iy = 0; iy < ny; iy+=2)
+ for (int iz = 0; iz < nz; iz+=2) {
+  double x = getX(ix);
+  double y = getY(iy);
+  double eta = getZ(iz);
+  Cell *c = getCell(ix, iy, iz);
+  c->getPrimVar(eos, tau, e, p, nb, nq, ns, vx, vy, vz);
+  Y = eta + 1. / 2. * log((1. + vz) / (1. - vz));
+  eos->eos(e, nb, nq, ns, t, mub, muq, mus, p);
+  f3d << setw(14) << tau << setw(14) << x << setw(14) << y << setw(14) << eta << setw(14) << vx << setw(14) << Y << setw(14) << vz
+        << setw(14) << e << setw(14) << nb << setw(14) << nq << setw(14) << ns  << setw(14) << t << setw(14) << p  << setw(14) << mub << setw(14) << muq << setw(14) << mus
+        << setw(14) << c->getViscCorrCutFlag() << endl;
+ }
+ f3d << endl;
 }
 
 // unput: geom. rapidity + velocities in Bjorken frame, --> output: velocities

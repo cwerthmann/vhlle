@@ -24,7 +24,7 @@ private:
  double vEff, EtotSurf;  // cumulative effective volume and
  int compress2dOut;
  std::ofstream fkw, fkw_dim, fxvisc, fyvisc, fdiagvisc, fx,
-   fy, fdiag, fz, faniz, f2d, ffreeze;
+   fy, fdiag, fz, faniz, f2d, f3d, ffreeze;
  char* fluidsuffix;
 
 public:
