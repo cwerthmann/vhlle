@@ -53,7 +53,8 @@ int eosTypeHadron = 1;
 double xmin = -18.0, xmax = 18.0, ymin = -18.0, ymax = 18.0, etamin = -1.5, etamax = 1.5;
 double tau0 = 5.0, tauMax = 30.0, dtau = 0.05, dtau_adaptive=0.0;
 string collSystem, outputDir, isInputFile;
-double etaS, zetaS, eCrit = 0.5, eEtaSMin, al, ah, aRho, T0, etaSMin;
+double etaS, zetaS, eCrit = 0.5, eEtaSMin, al, ah, aRho, T0, etaSMin, etaH_eta0=0.045, etaH_eta2=0.28, etaH_eta4=0.287;
+// the default values of etaH_eta0, etaH_eta2, etaH_eta4 are taken from arXiv:2408.00537, table V.
 int icModel,glauberVariable =1;  // icModel=1 for pure Glauber, 2 for table input (Glissando etc)
 double Rgt = 1.0, Rgz;
 double xi_fa = 0.1, lambda = 1.0, formationTime = 0.0, xi_q = 30.0, xi_h = 1.0, alphaxs=0.7, betaxs=0.1, tau_unification=0.2, Tmax=1.0;
@@ -192,6 +193,12 @@ void readParameters(char *parFile) {
    eEtaSMin = atof(parValue);
   else if (strcmp(parName, "etaSMin") == 0)
    etaSMin = atof(parValue);
+  else if (strcmp(parName, "etaH_eta0") == 0)
+   etaH_eta0 = atof(parValue);
+  else if (strcmp(parName, "etaH_eta2") == 0)
+   etaH_eta2 = atof(parValue);
+  else if (strcmp(parName, "etaH_eta4") == 0)
+   etaH_eta4 = atof(parValue);
   else if (strcmp(parName, "verbose") == 0)
    verbose = atoi(parValue);
   else if (parName[0] == '!')
@@ -423,7 +430,8 @@ if(adaptiveTimestep==1){
 
 
  // transport coefficients
- trcoeff = new TransportCoeff(etaS, zetaS, zetaSparam, eos, etaSparam, ah, al, aRho, T0, etaSMin, eEtaSMin);
+ trcoeff = new TransportCoeff(etaS, zetaS, zetaSparam, eos, etaSparam, ah, al, aRho, T0,
+                            etaSMin, eEtaSMin, etaH_eta0, etaH_eta2, etaH_eta4);
 
  f_p = new Fluid(eos, eosH, trcoeff, nx, ny, nz, xmin, xmax, ymin, ymax, etamin,
                etamax, dtau, eCrit);

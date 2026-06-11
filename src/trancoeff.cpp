@@ -4,19 +4,6 @@
 #include "trancoeff.h"
 #include "inc.h"
 
-TransportCoeff::TransportCoeff(double _etaS, double _zetaS, int _zetaSparam, EoS *_eos, int _etaSparam, double _ah, double _al, double _aRho, double _T0, double _etaSMin, double _eEtaSMin) {
- etaS0 = _etaS;
- zetaS0 = _zetaS;
- zetaSparam = _zetaSparam; //0 - basic ,1 ,2 - arxiv:1910.12930, 3 arxiv:2103.09848
- eos = _eos;
- etaSparam = _etaSparam;
- ah = _ah;
- al = _al;
- aRho =_aRho;
- etaSMin = _etaSMin;
- eEtaSMin = _eEtaSMin;
- T0=_T0;
-}
 
 void TransportCoeff::printZetaT()
 {
@@ -87,16 +74,13 @@ double TransportCoeff::eta(double e, double p, double nb, double s, double T, do
       return (std::max(0.0, etaSMin + ((e>eEtaSMin) ? ( (ah*(e-eEtaSMin)+aRho*nb) ): al*(e-eEtaSMin)+aRho*nb))) * s;
   }
   else if (etaSparam == 4){
-      const double eta_0 = 0.045;
-      const double eta_2 = 0.28;
-      const double eta_4 = 0.287;
-      double eta_tld = eta_0;
+      double eta_tld = etaH_eta0;
       if( mub>=0. && mub < 0.2)
-        eta_tld = eta_0 + (eta_2 - eta_0) * mub / 0.2;
+        eta_tld = etaH_eta0 + (etaH_eta2 - etaH_eta0) * mub / 0.2;
       else if (mub>=0.2 && mub<0.4)
-        eta_tld = eta_2 + (eta_4 - eta_2) * (mub - 0.2) / 0.2;
+        eta_tld = etaH_eta2 + (etaH_eta4 - etaH_eta2) * (mub - 0.2) / 0.2;
       else if (mub > 0.4)
-        eta_tld = eta_4;
+        eta_tld = etaH_eta4;
       if(T>0.)
        return std::max(0.0, eta_tld) * (e + p) / T;
       else
