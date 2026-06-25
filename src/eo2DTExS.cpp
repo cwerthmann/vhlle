@@ -2,6 +2,7 @@
 #include <iomanip>
 #include <ctime>
 #include <cstdlib>
+#include <limits>
 
 #include <iostream>
 #include <fstream>
@@ -17,6 +18,12 @@ constexpr double HBARC = 0.1973269804;               // GeV*fm
 constexpr double HBARC3 = HBARC * HBARC * HBARC;
 constexpr double GEV4_TO_GEV_FM3 = 1.0 / HBARC3;     // GeV^4 -> GeV/fm^3
 constexpr double GEV3_TO_FM3     = GEV4_TO_GEV_FM3;  // GeV^3 -> 1/fm^3
+
+constexpr double EOS_E_MIN = 1e-12;
+constexpr double EOS_TABLE_E_MAX  = 5.09968384 * GEV4_TO_GEV_FM3;
+constexpr double EOS_TABLE_NB_MAX = 0.142025728 * GEV3_TO_FM3;
+constexpr double EOS_FALLBACK_P_COEFF = 0.2964;
+constexpr double EOS_FALLBACK_T_COEFF = 0.15120476935;
 }
 
 EoS2DTExS_aux::EoS2DTExS_aux(const char* filename, int Nt, int Nmb)
@@ -110,36 +117,56 @@ EoS2DTExS_aux::~EoS2DTExS_aux() {
 void EoS2DTExS_aux::get(double e, double nb, double& p, double& T, double& mub,
                  double& mus) {
 
-   //cout << "EoS2DTExS_aux::get called with e=" << e << ", nb=" << nb << endl;
  if (e < 0.) {
   T = mub = mus = p = 0.;
   return;
  }
+
+ if (!std::isfinite(e) || !std::isfinite(nb) || e <= EOS_E_MIN) {
+  T = mub = mus = p = 0.0;
+  return;
+ }
+
  // Convert inputs (GeV/fm^3, 1/fm^3) to natural units expected by the table (GeV^4, GeV^3)
- const double energyGeV4  = e  * HBARC3;
+ const double energyGeV4 = e * HBARC3;
  const double baryonDensityGeV3 = nb * HBARC3;
+
+ if (!std::isfinite(energyGeV4) || !std::isfinite(baryonDensityGeV3) || energyGeV4 <= 0.0) {
+  T = mub = mus = p = 0.0;
+  return;
+ }
 
  // Convert (e, nb) to tilde variables based on conformal relations
  const double tildeT = pow((12.0 * energyGeV4) / (19.0 * M_PI * M_PI), 0.25);
- if (tildeT <= 0.0) {
-    T = mub = mus = p = 0.0;
-    return;
+ if (!std::isfinite(tildeT) || tildeT <= 0.0) {
+  T = mub = mus = p = 0.0;
+  return;
  }
- double tildeMuB = 5.0 * baryonDensityGeV3 / (tildeT * tildeT); // based on https://arxiv.org/abs/2406.11610
+
+ double tildeMuB = 5.0 * baryonDensityGeV3 / (tildeT * tildeT);
+ if (!std::isfinite(tildeMuB)) {
+  T = mub = mus = p = 0.0;
+  return;
+ }
 
  if (NtGrid < 2 || NmbGrid < 2) {
   T = mub = mus = p = 0.0;
   return;
  }
 
-
  const double tildeTStep   = (tildeTMax - tildeTMin) / (NtGrid - 1);
  const double tildeMuBStep = (tildeMuBMax - tildeMuBMin) / (NmbGrid - 1);
 
+ if (!std::isfinite(tildeTStep) || !std::isfinite(tildeMuBStep) ||
+     tildeTStep <= 0.0 || tildeMuBStep <= 0.0) {
+  T = mub = mus = p = 0.0;
+  return;
+ }
+
  double clampedTildeT  = tildeT;
  double clampedTildeMuB = tildeMuB;
- if (clampedTildeT  < tildeTMin) clampedTildeT  = tildeTMin;
- if (clampedTildeT  > tildeTMax) clampedTildeT  = tildeTMax;
+ if (clampedTildeT < tildeTMin) clampedTildeT = tildeTMin;
+ if (clampedTildeT > tildeTMax) clampedTildeT = tildeTMax;
  if (clampedTildeMuB < tildeMuBMin) clampedTildeMuB = tildeMuBMin;
  if (clampedTildeMuB > tildeMuBMax) clampedTildeMuB = tildeMuBMax;
 
@@ -150,7 +177,7 @@ void EoS2DTExS_aux::get(double e, double nb, double& p, double& T, double& mub,
  if (iT > NtGrid - 2) iT = NtGrid - 2;
  if (iMu > NmbGrid - 2) iMu = NmbGrid - 2;
 
- const double tildeTOffset  = clampedTildeT  - tildeTMin - iT * tildeTStep;
+ const double tildeTOffset = clampedTildeT - tildeTMin - iT * tildeTStep;
  const double tildeMuBOffset = clampedTildeMuB - tildeMuBMin - iMu * tildeMuBStep;
 
  double weightsT[2] = {1.0 - tildeTOffset / tildeTStep, tildeTOffset / tildeTStep};
@@ -165,30 +192,44 @@ void EoS2DTExS_aux::get(double e, double nb, double& p, double& T, double& mub,
     mub += weight * mubtab[iT + jT][iMu + jMu];
     mus += weight * mustab[iT + jT][iMu + jMu];
    }
-  if (p < 0.0) p = 0.0;
+
+ if (!std::isfinite(p) || !std::isfinite(T) || !std::isfinite(mub) || !std::isfinite(mus)) {
+  T = mub = mus = p = 0.0;
+  return;
+ }
+
+ if (p < 0.0) p = 0.0;
 }
 
 double EoS2DTExS_aux::p(double e, double nb) {
- if (e < 0.) return 0.0;
- const double energyGeV4  = e  * HBARC3;
+ if (e < EOS_E_MIN) return 0.0;
+ if (!std::isfinite(e) || !std::isfinite(nb)) return 0.0;
+
+ const double energyGeV4 = e * HBARC3;
  const double baryonDensityGeV3 = nb * HBARC3;
 
+ if (!std::isfinite(energyGeV4) || !std::isfinite(baryonDensityGeV3) || energyGeV4 <= 0.0)
+  return 0.0;
+
  const double tildeT = pow((12.0 * energyGeV4) / (19.0 * M_PI * M_PI), 0.25);
- if (tildeT <= 0.0) return 0.0;
- double tildeMuB = 3.0 * baryonDensityGeV3 / (tildeT * tildeT);
+ if (!std::isfinite(tildeT) || tildeT <= 0.0) return 0.0;
+
+ double tildeMuB = 5.0 * baryonDensityGeV3 / (tildeT * tildeT);
+ if (!std::isfinite(tildeMuB)) return 0.0;
 
  if (NtGrid < 2 || NmbGrid < 2) return 0.0;
-
 
  const double tildeTStep   = (tildeTMax - tildeTMin) / (NtGrid - 1);
  const double tildeMuBStep = (tildeMuBMax - tildeMuBMin) / (NmbGrid - 1);
 
-
+ if (!std::isfinite(tildeTStep) || !std::isfinite(tildeMuBStep) ||
+     tildeTStep <= 0.0 || tildeMuBStep <= 0.0)
+  return 0.0;
 
  double clampedTildeT  = tildeT;
  double clampedTildeMuB = tildeMuB;
- if (clampedTildeT  < tildeTMin) clampedTildeT  = tildeTMin;
- if (clampedTildeT  > tildeTMax) clampedTildeT  = tildeTMax;
+ if (clampedTildeT < tildeTMin) clampedTildeT = tildeTMin;
+ if (clampedTildeT > tildeTMax) clampedTildeT = tildeTMax;
  if (clampedTildeMuB < tildeMuBMin) clampedTildeMuB = tildeMuBMin;
  if (clampedTildeMuB > tildeMuBMax) clampedTildeMuB = tildeMuBMax;
 
@@ -199,7 +240,7 @@ double EoS2DTExS_aux::p(double e, double nb) {
  if (iT > NtGrid - 2) iT = NtGrid - 2;
  if (iMu > NmbGrid - 2) iMu = NmbGrid - 2;
 
- const double tildeTOffset  = clampedTildeT  - tildeTMin - iT * tildeTStep;
+ const double tildeTOffset  = clampedTildeT - tildeTMin - iT * tildeTStep;
  const double tildeMuBOffset = clampedTildeMuB - tildeMuBMin - iMu * tildeMuBStep;
 
  double weightsT[2] = {1.0 - tildeTOffset / tildeTStep, tildeTOffset / tildeTStep};
@@ -210,13 +251,18 @@ double EoS2DTExS_aux::p(double e, double nb) {
     for (int jMu = 0; jMu < 2; ++jMu)
       pres += weightsT[jT] * weightsMuB[jMu] * ptab[iT + jT][iMu + jMu];
 
+ if (!std::isfinite(pres)) return 0.0;
  if (pres < 0.0) pres = 0.0;
  return pres;
 }
 
 double EoS2DTExS::p(double e, double nb) {
- if (e < 0.) return 0.0;
- return eos_TExS->p(e, nb);
+ if (!std::isfinite(e) || !std::isfinite(nb) || e <= EOS_E_MIN) return 0.0;
+
+ if (e >= 0.0 && e <= EOS_TABLE_E_MAX && nb >= 0.0 && nb <= EOS_TABLE_NB_MAX)
+  return eos_TExS->p(e, nb);
+
+ return EOS_FALLBACK_P_COEFF * e;
 }
 
 EoS2DTExS::EoS2DTExS(const char* filename, int Nt, int Nmb) {
@@ -229,10 +275,31 @@ EoS2DTExS::~EoS2DTExS() {
 
 void EoS2DTExS::eos(double e, double nb, double nq, double ns, double& T,
                     double& mub, double& muq, double& mus, double& p) {
- eos_TExS->get(e, nb, p, T, mub, mus);
- muq = 0.0; 
+ if (!std::isfinite(e) || !std::isfinite(nb)) {
+  T = mub = muq = mus = p = 0.0;
+  return;
+ }
+
+ if (e <= EOS_E_MIN) {
+  T = mub = muq = mus = p = 0.0;
+  return;
+ }
+
+ if (e >= 0.0 && e <= EOS_TABLE_E_MAX && nb >= 0.0 && nb <= EOS_TABLE_NB_MAX) {
+  eos_TExS->get(e, nb, p, T, mub, mus);
+  muq = 0.0;
+ } else {
+  p = EOS_FALLBACK_P_COEFF * e;
+  T = EOS_FALLBACK_T_COEFF * pow(e, 0.25);
+  mub = muq = mus = 0.0;
+ }
 }
 
 double EoS2DTExS::p(double e, double nb, double nq, double ns) {
- return eos_TExS->p(e, nb);
+ if (!std::isfinite(e) || !std::isfinite(nb) || e <= EOS_E_MIN) return 0.0;
+
+ if (e >= 0.0 && e <= EOS_TABLE_E_MAX && nb >= 0.0 && nb <= EOS_TABLE_NB_MAX)
+  return eos_TExS->p(e, nb);
+
+ return EOS_FALLBACK_P_COEFF * e;
 }
