@@ -22,6 +22,7 @@
 #include <stdlib.h>
 #include <cmath>
 #include <algorithm>
+#include <vector>
 #include "inc.h"
 #include "rmn.h"
 #include "fld.h"
@@ -314,6 +315,12 @@ void Fluid::correctImagCellsFull(void) {
 }
 
 void Fluid::updateM(double tau, double dt) {
+ // Pass 1 writes only dm of its own cell and reads only m of the neighbours,
+ // so it parallelises cleanly; pass 2 (m += dm) is strictly per-cell.
+ // The cell's primitive variables used to be recovered twice whenever both
+ // branches below were taken -- two Newton/bisection solves for one cell --
+ // so vz is now obtained once, on demand, and reused.
+ #pragma omp parallel for collapse(2) schedule(dynamic, 2)
  for (int ix = 0; ix < getNX(); ix++)
   for (int iy = 0; iy < getNY(); iy++)
    for (int iz = 0; iz < getNZ(); iz++) {
@@ -321,9 +328,11 @@ void Fluid::updateM(double tau, double dt) {
     c->setDM(X_, 0.);
     c->setDM(Y_, 0.);
     c->setDM(Z_, 0.);
+    double e, p, nb, nq, ns, vx, vy, vz;
+    bool pvDone = false;
     if (c->getMaxM() < 1.) {
-     double e, p, nb, nq, ns, vx, vy, vz;
-     getCell(ix, iy, iz)->getPrimVar(eos, tau, e, p, nb, nq, ns, vx, vy, vz);
+     c->getPrimVar(eos, tau, e, p, nb, nq, ns, vx, vy, vz);
+     pvDone = true;
      if (getCell(ix + 1, iy, iz)->getM(X_) >= 1. ||
          getCell(ix - 1, iy, iz)->getM(X_) >= 1.)
       c->setDM(X_, dt / dx);
@@ -346,8 +355,10 @@ void Fluid::updateM(double tau, double dt) {
      }
     }  // if
     if(c->getMaxM() > 0.) {
-     double e, p, nb, nq, ns, vx, vy, vz;
-     c->getPrimVar(eos, tau, e, p, nb, nq, ns, vx, vy, vz);
+     if (!pvDone) {
+      c->getPrimVar(eos, tau, e, p, nb, nq, ns, vx, vy, vz);
+      pvDone = true;
+     }
      if (getCell(ix, iy, iz - 1)->getM(Z_) < 1e-5 && vz>0.5) {
       c->setDM(Z_, - vz * dt / dz / tau);
       c->setDM(X_, -1.0);
@@ -361,6 +372,7 @@ void Fluid::updateM(double tau, double dt) {
     }
    }  // end of 3D cell loop
 
+ #pragma omp parallel for collapse(2) schedule(dynamic, 2)
  for (int ix = 0; ix < getNX(); ix++)
   for (int iy = 0; iy < getNY(); iy++)
    for (int iz = 0; iz < getNZ(); iz++) {
@@ -1058,14 +1070,26 @@ void Fluid::InitialAnisotropies(double tau0) {
 void Fluid::CheckEoSPhysicality(double tau){
  int Nunphys=0, Ntot=0;
  double Eunphys=0.0, Etot=0.0, lowest=100.0, highest=0.01, avgNnum=0.0, avgNnumsq=0.0, avgEnum=0.0, avgEnumsq=0.0,highQ0=0.0,lowQ0=0.0;
- for (int ix = 2; ix < nx - 2; ix++)
+ // Purely diagnostic, but it walks the whole grid twice per timestep and does
+ // a full primitive-variable recovery per cell.  Empty cells can only give
+ // e = nb = 0 and are dropped by the test below, so the recovery is now
+ // skipped for them outright.  The sums reduce; lowest/highest and their
+ // companion Q0 values are merged per ix slab, in ascending ix order, so the
+ // printed numbers do not depend on the thread count.
+ struct Extremum { double val, q0; };
+ const int nSlab = (nx - 4 > 0) ? (nx - 4) : 0;
+ std::vector<Extremum> lowSlab(nSlab, Extremum{100.0, 0.0});
+ std::vector<Extremum> highSlab(nSlab, Extremum{0.01, 0.0});
+ #pragma omp parallel for schedule(dynamic, 1) \
+   reduction(+:Nunphys,Ntot,Eunphys,Etot,avgNnum,avgNnumsq,avgEnum,avgEnumsq)
+ for (int ix = 2; ix < nx - 2; ix++) {
+  double lowLoc = 100.0, highLoc = 0.01, lowQ0Loc = 0.0, highQ0Loc = 0.0;
   for (int iy = 2; iy < ny - 2; iy++)
    for (int iz = 2; iz < nz - 2; iz++) {
     Cell *c = getCell(ix, iy, iz);
+    if (c->getQt() <= 0.) continue;
     double _Q[7];
     c->getQ(_Q);
-
-
 
     double e, p, nb, nq, ns, vx, vy, vz;
     c->getPrimVar(eos, tau, e, p, nb, nq, ns, vx, vy, vz);
@@ -1078,12 +1102,12 @@ void Fluid::CheckEoSPhysicality(double tau){
      Nunphys++;
      Eunphys+=_Q[0];
     }
-    if(e/nb<lowest){
-     lowest=e/nb;
-     lowQ0=_Q[0];
-    }if(e/nb>highest){
-     highest=e/nb;
-     highQ0=_Q[0];
+    if(e/nb<lowLoc){
+     lowLoc=e/nb;
+     lowQ0Loc=_Q[0];
+    }if(e/nb>highLoc){
+     highLoc=e/nb;
+     highQ0Loc=_Q[0];
     }
 
     avgNnum+=e/nb;
@@ -1092,6 +1116,13 @@ void Fluid::CheckEoSPhysicality(double tau){
     avgEnumsq+=e*e/nb/nb*_Q[0];
      }
     }
+  lowSlab[ix - 2] = Extremum{lowLoc, lowQ0Loc};
+  highSlab[ix - 2] = Extremum{highLoc, highQ0Loc};
+ }
+ for (int k = 0; k < nSlab; k++) {
+  if (lowSlab[k].val < lowest) { lowest = lowSlab[k].val; lowQ0 = lowSlab[k].q0; }
+  if (highSlab[k].val > highest) { highest = highSlab[k].val; highQ0 = highSlab[k].q0; }
+ }
     cout <<endl;
  cout << "Physicality check in " << fluidsuffix <<": " << Nunphys << " unphysical cells (" << 100.0*Nunphys/Ntot << "%) containing energy of " << Eunphys << " arb.u. (" << 100.0*Eunphys/Etot << "%)" <<endl;
  cout << "Lowest e/nB="<<lowest<< " in cell with "<<100.0*lowQ0*Ntot/Etot <<"% of mean energy, highest e/nB="<<highest<< " in cell with "<<100.0*highQ0*Ntot/Etot <<"% of mean energy, N average e/nB="<<avgNnum/Ntot<<"(±"<<sqrt(avgNnumsq/Ntot-avgNnum*avgNnum/Ntot/Ntot)<<"), E average e/nB="<<avgEnum/Etot<<"(±"<<sqrt(avgEnumsq/Etot-avgEnum*avgEnum/Etot/Etot)<<")"<<endl;
@@ -1105,17 +1136,28 @@ void Fluid::computeTotals(double tau, double &E, double &Nb1, double &Nb2) {
  Nb1 = 0.;
  Nb2 = 0.;
  double eta = 0;
+ // cosh_int / sinh_int depend on eta, hence on iz alone: tabulate them once
+ // instead of evaluating four transcendentals per cell.
+ std::vector<double> coshIntTab(nz), sinhIntTab(nz);
+ for (int iz = 0; iz < nz; iz++) {
+  const double et = getZ(iz);
+  coshIntTab[iz] = (sinh(et + 0.5 * dz) - sinh(et - 0.5 * dz)) / dz;
+  sinhIntTab[iz] = (cosh(et + 0.5 * dz) - cosh(et - 0.5 * dz)) / dz;
+ }
+ #pragma omp parallel for collapse(2) schedule(dynamic, 2) \
+   reduction(+:E,Nb1,Nb2) private(e,p,nb,nq,ns,t,mub,muq,mus,vx,vy,vz,Q,eta)
  for (int ix = 2; ix < nx - 2; ix++)
   for (int iy = 2; iy < ny - 2; iy++)
    for (int iz = 2; iz < nz - 2; iz++) {
     Cell *c = getCell(ix, iy, iz);
+    if (c->getQt() == 0.) continue;
     getCMFvariables(c, tau, e, nb, nq, ns, vx, vy, vz);
     c->getQ(Q);
     eos->eos(e, nb, nq, ns, t, mub, muq, mus, p);
     double s = eos->s(e, nb, nq, ns);
     eta = getZ(iz);
-    const double cosh_int = (sinh(eta + 0.5 * dz) - sinh(eta - 0.5 * dz)) / dz;
-    const double sinh_int = (cosh(eta + 0.5 * dz) - cosh(eta - 0.5 * dz)) / dz;
+    const double cosh_int = coshIntTab[iz];
+    const double sinh_int = sinhIntTab[iz];
     E += tau * (e + p) / (1. - vx * vx - vy * vy - tanh(vz) * tanh(vz)) *
              (cosh_int - tanh(vz) * sinh_int) -
          tau * p * cosh_int;

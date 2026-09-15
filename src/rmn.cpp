@@ -97,9 +97,12 @@ void transformPV(EoS *eos, double Q[7], double &e, double &p, double &nb,
 
   e = Q[T_] - M * v;
   if (e < 0.) e = 0.;
-  nb = Q[NB_] * sqrt(1 - v * v);
-  nq = Q[NQ_] * sqrt(1 - v * v);
-  ns = Q[NS_] * sqrt(1 - v * v);
+  {  // one sqrt instead of three identical ones, per Newton/bisection step
+   const double gaminv = sqrt(1 - v * v);
+   nb = Q[NB_] * gaminv;
+   nq = Q[NQ_] * gaminv;
+   ns = Q[NS_] * gaminv;
+  }
   p = eos->p(e, nb, nq, ns);
   f = (Q[T_] + p) * v - M;
   df = (Q[T_] + p) - M * v * dpe;
@@ -123,9 +126,12 @@ void transformPV(EoS *eos, double Q[7], double &e, double &p, double &nb,
  vy = v * Q[Y_] / M;
  vz = v * Q[Z_] / M;
  e = Q[T_] - M * v;
- nb = Q[NB_] * sqrt(1 - vx * vx - vy * vy - vz * vz);
- nq = Q[NQ_] * sqrt(1 - vx * vx - vy * vy - vz * vz);
- ns = Q[NS_] * sqrt(1 - vx * vx - vy * vy - vz * vz);
+ {
+  const double gaminv = sqrt(1 - vx * vx - vy * vy - vz * vz);
+  nb = Q[NB_] * gaminv;
+  nq = Q[NQ_] * gaminv;
+  ns = Q[NS_] * gaminv;
+ }
  p = eos->p(e, nb, nq, ns);
  if ((e < 0. || sqrt(vx * vx + vy * vy + vz * vz) > 1.) && print_error){
   cout << Q[T_] << "  " << Q[X_] << "  " << Q[Y_] << "  " << Q[Z_] << "  "
@@ -205,9 +211,12 @@ void transformPVBulk(EoS *eos, double Pi, double Q[7], double &e, double &p,
 
   e = Q[T_] - M * v;
   if (e < 0.) e = 0.;
-  nb = Q[NB_] * sqrt(1 - v * v);
-  nq = Q[NQ_] * sqrt(1 - v * v);
-  ns = Q[NS_] * sqrt(1 - v * v);
+  {
+   const double gaminv = sqrt(1 - v * v);
+   nb = Q[NB_] * gaminv;
+   nq = Q[NQ_] * gaminv;
+   ns = Q[NS_] * gaminv;
+  }
   p = eos->p(e, nb, nq, ns) + Pi;
   f = (Q[T_] + p) * v - M;
   df = (Q[T_] + p) - M * v * dpe;
@@ -231,9 +240,12 @@ void transformPVBulk(EoS *eos, double Pi, double Q[7], double &e, double &p,
  vz = v * Q[Z_] / M;
  e = Q[T_] - M * v;
  p = eos->p(e, nb, nq, ns);
- nb = Q[NB_] * sqrt(1 - vx * vx - vy * vy - vz * vz);
- nq = Q[NQ_] * sqrt(1 - vx * vx - vy * vy - vz * vz);
- ns = Q[NS_] * sqrt(1 - vx * vx - vy * vy - vz * vz);
+ {
+  const double gaminv = sqrt(1 - vx * vx - vy * vy - vz * vz);
+  nb = Q[NB_] * gaminv;
+  nq = Q[NQ_] * gaminv;
+  ns = Q[NS_] * gaminv;
+ }
  if (e < 0. || sqrt(vx * vx + vy * vy + vz * vz) > 1.) {
   cout << Q[T_] << "  " << Q[X_] << "  " << Q[Y_] << "  " << Q[Z_] << "  "
        << Q[NB_] << endl;

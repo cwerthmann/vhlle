@@ -1,9 +1,10 @@
 #include <cmath>
-
-class TGraph;
+#include "interp1d.h"
 
 class CrossSections {
- TGraph *gSigmaT, *gSigmaE, *gSigmaPimp, *gSigmaPipp;
+ // were ROOT TGraphs; Ivanov()/piN() are called from the parallel
+ // friction substep, so the lookup tables must be free of mutable state
+ Interp1D gSigmaT, gSigmaE, gSigmaPimp, gSigmaPipp;
  double alpha=0.5, beta=0.5;
 public:
  CrossSections(double _alpha, double _beta);

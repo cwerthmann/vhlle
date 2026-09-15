@@ -1,8 +1,6 @@
 #include <cmath>
 #include <fstream>
 #include <iostream>
-#include <TMatrixDEigen.h>
-#include <TMatrixD.h>
 #include <TLorentzVector.h>
 #include <iomanip>
 #include <Math/Functor.h>
@@ -20,6 +18,9 @@
 #include "cornelius.h"
 #include "nucleon.h"
 #include "EfI.h"
+#include "landau.h"
+#include <vector>
+#include <sstream>
 
 #define OUTPI
 
@@ -86,21 +87,10 @@ MultiHydro::MultiHydro(Fluid *_f_p, Fluid *_f_t, Fluid *_f_f, Hydro *_h_p,
  vEff_t = 0.;
  vEff_f = 0.;
 
- // allocate field for oveall energy density
- MHeps = new double**[nx];
- MHepsPrev = new double**[nx];
- for (int ix = 0; ix < nx; ix++) {
-  MHeps[ix] = new double*[ny];
-  MHepsPrev[ix] = new double*[ny];
-  for (int iy = 0; iy < ny; iy++) {
-   MHeps[ix][iy] = new double[nz];
-   MHepsPrev[ix][iy] = new double[nz];
-   for (int iz = 0; iz < nz; iz++) {
-    MHeps[ix][iy][iz] = 0.0;
-    MHepsPrev[ix][iy][iz] = 0.0;
-   }
-  }
- }
+ // Allocate the field for the overall energy density: one contiguous block per
+ // field, addressed with index3().  The trailing () value-initialises to zero.
+ MHeps = new double[(size_t)nx * ny * nz]();
+ MHepsPrev = new double[(size_t)nx * ny * nz]();
 
  Q0min=1e-3*h_p->getTau()*Etot/(dx)/(dy)/(dz)/f_p->getNX()/f_p->getNY()/f_p->getNZ();
  cout<<"min Q0 level: "<<Q0min<<endl;
@@ -180,14 +170,6 @@ MultiHydro::MultiHydro(Fluid *_f_p, Fluid *_f_t, Fluid *_f_f, Hydro *_h_p,
 }
 
 MultiHydro::~MultiHydro() {
- for (int ix = 0; ix < nx; ix++) {
-  for (int iy = 0; iy < ny; iy++) {
-   delete[] MHeps[ix][iy];
-   delete[] MHepsPrev[ix][iy];
-  }
-  delete[] MHeps[ix];
-  delete[] MHepsPrev[ix];
- }
  delete[] MHeps;
  delete[] MHepsPrev;
 }
@@ -280,24 +262,17 @@ double MultiHydro::EfIeval(double Tf, double vatilde){
 
 void MultiHydro::performStep()
 {
- #pragma omp parallel
- {
- #pragma omp sections
- {
- #pragma omp section
- {
+ // The three fluids used to be dispatched to three OpenMP sections.  That
+ // caps the speed-up at 3x however many cores are available, it is badly
+ // load-imbalanced (the three fluids occupy very different fractions of the
+ // grid, and the fireball's occupancy grows as the others' shrink), and it
+ // leaves everything outside this function -- the friction substep, the
+ // Landau-frame energy density and the whole surface reconstruction --
+ // running on one thread.  Each fluid is now stepped in turn with all threads
+ // working inside it, and the routines below are parallel in their own right.
  h_p->performStep();
- }
- #pragma omp section
- {
  h_t->performStep();
- }
- #pragma omp section
- {
  h_f->performStep();
- }
- }
- }
 
  f_p->CheckEoSPhysicality(h_p->getTau());
  f_t->CheckEoSPhysicality(h_t->getTau());
@@ -325,17 +300,30 @@ void MultiHydro::frictionSubstep()
  double Nblim=0.0;
  double Nbphyslim=0.0;
  double Nbuni=0.0;
- double Nbpsub,Nbtsub,Nbpfsub,Nbtfsub,Nbtlimsub,Nbtphyslimsub,Nbtunisub,Nbplimsub,Nbpphyslimsub,Nbpunisub;
  int NSkip=0;
  int Nloop=0;
  // here it is assumed that projectile and target grids
  // have same dimensions and physical sizes
- //#pragma omp parallel for num_threads(3) collapse(3)
+ //
+ // The friction substep is strictly cell-local: for a given (ix,iy,iz) it
+ // touches the projectile, target and fireball cells at that index and
+ // nothing else.  That makes it the most straightforwardly parallel loop in
+ // the code, yet it used to run on a single thread while the rest of
+ // performStep() was split three ways.  Everything the body accumulated has
+ // been turned into a reduction and the per-substep scratch moved inside the
+ // loop, so the result is independent of the thread count up to the ordering
+ // of the reductions themselves.
+ #pragma omp parallel for collapse(2) schedule(dynamic, 2) \
+   reduction(min:mindtaufric) \
+   reduction(+:NLimitedFriction,Nunphys,NSkip,Nloop) \
+   reduction(+:ELimitedFriction,EtotFriction,EtotLimited,Eunphys) \
+   reduction(+:Etotloops,Etotloopspt,Nbpt,Nbf,Nblim,Nbphyslim,Nbuni)
  for (int iy = 0; iy < f_p->getNY(); iy++)
   for (int iz = 0; iz < f_p->getNZ(); iz++)
    for (int ix = 0; ix < f_p->getNX(); ix++) {
     double dtaufric;
     double dtaufrictot=0.0;
+    double Nbpsub,Nbtsub,Nbpfsub,Nbtfsub,Nbtlimsub,Nbtphyslimsub,Nbtunisub,Nbplimsub,Nbpphyslimsub,Nbpunisub;
 
     while(dtaufrictot<dtau){
      Nbpsub=0.0;
@@ -369,13 +357,23 @@ void MultiHydro::frictionSubstep()
     Etotloops+=(_Q_p[0]+_Q_t[0]+_Q_f[0])/taup;
     Etotloopspt+=(_Q_p[0]+_Q_t[0])/taup;
 
-    double ep, pp, nbp, nqp, nsp, vxp, vyp, vzp;
-    double et, pt, nbt, nqt, nst, vxt, vyt, vzt;
-    double ef, pf, nbf, nqf, nsf, vxf, vyf, vzf;
-    c_p->getPrimVar(eos, taup, ep, pp, nbp, nqp, nsp, vxp, vyp, vzp);
-    c_t->getPrimVar(eos, taut, et, pt, nbt, nqt, nst, vxt, vyt, vzt);
-    c_f->getPrimVar(eos, tauf, ef, pf, nbf, nqf, nsf, vxf, vyf, vzf);
-    if(_Q_p[0]>Q0min||_Q_t[0]>Q0min){
+    double ep=0., pp=0., nbp=0., nqp=0., nsp=0., vxp=0., vyp=0., vzp=0.;
+    double et=0., pt=0., nbt=0., nqt=0., nst=0., vxt=0., vyt=0., vzt=0.;
+    double ef=0., pf=0., nbf=0., nqf=0., nsf=0., vxf=0., vyf=0., vzf=0.;
+    // The three recoveries below are the dominant cost of this loop -- each
+    // is a Newton/bisection solve with an EoS evaluation per iteration -- and
+    // they used to run before the test that decides whether any of their
+    // results will be used at all.  Where both baryon-rich fluids are empty
+    // the whole cell is skipped, so the recoveries are now done only when the
+    // cell is active.  Nothing below the skip branch reads these variables:
+    // the skip path only increments NSkip and ends the substep loop.
+    const bool cellActive = (_Q_p[0]>Q0min||_Q_t[0]>Q0min);
+    if (cellActive) {
+     c_p->getPrimVar(eos, taup, ep, pp, nbp, nqp, nsp, vxp, vyp, vzp);
+     c_t->getPrimVar(eos, taut, et, pt, nbt, nqt, nst, vxt, vyt, vzt);
+     c_f->getPrimVar(eos, tauf, ef, pf, nbf, nqf, nsf, vxf, vyf, vzf);
+    }
+    if(cellActive){
     double TCp, mubCp, muqCp, musCp, pCp;
     double TCt, mubCt, muqCt, musCt, pCt;
     double TCf, mubCf, muqCf, musCf, pCf;
@@ -889,8 +887,17 @@ void MultiHydro::frictionSubstep()
 
 void MultiHydro::addRetardedFriction(double flux, double x, double y, double z, double t, int i)
 {
+ if (abs(flux) <= 1e-3) return;
  vector<double> v = {flux, x, y, z, t, (double)i};
- if (abs(flux) > 1e-3) retardedFriction.push_back(v);
+ // Called from the now-parallel friction substep, but only when
+ // formationTime > 0, so a critical section costs nothing in the default
+ // configuration.  Note that with formationTime > 0 the order of entries in
+ // retardedFriction becomes thread-dependent; nothing reads the container at
+ // present (every calculateRetardedFriction() call site is commented out), so
+ // this is currently invisible, but it would need per-thread buffers merged
+ // in a fixed order before the retarded friction is switched back on.
+ #pragma omp critical(retardedFriction)
+ retardedFriction.push_back(v);
 }
 
 
@@ -972,73 +979,90 @@ void MultiHydro::getEnergyMomentumTensor(double (&T)[4][4], double Q_p[7], doubl
 
 void MultiHydro::getDiagonalizedEnergyDensity()
 {
- double Q_p[7], Q_f[7], Q_t[7];
- double Ttemp[4][4];
+ // Landau-frame energy density of the sum of the three fluids.
+ //
+ // This used to build a ROOT TMatrixD per cell and hand it to TMatrixDEigen,
+ // a general complex-capable 4x4 eigensolver that allocates on every call.
+ // On the default 121x121x161 grid that is 2.4 million eigendecompositions
+ // per timestep, and it ran on one thread.  The decomposition does not need a
+ // general solver: the mixed tensor is a sum of three rank-1 terms minus a
+ // multiple of the identity, so the whole problem reduces exactly to a
+ // symmetric 3x3 one.  See landau.h for the derivation; the reduction is
+ // algebraically exact, and the selection rule ("first eigenvector that is
+ // time-like, taken in order of decreasing |eigenvalue|") is unchanged.
+ //
+ // Define MH_USE_ROOT_EIGEN to compile the original ROOT path instead, for
+ // side-by-side checking.
+ const double invTauP = 1.0 / h_p->getTau();
+ const double invTauT = 1.0 / h_t->getTau();
+ const double invTauF = 1.0 / h_f->getTau();
+ int nNotTimelike = 0;
+ #pragma omp parallel for collapse(2) schedule(dynamic, 2) \
+   reduction(+:nNotTimelike)
  for (int iy = 0; iy < f_p->getNY(); iy++)
   for (int iz = 0; iz < f_p->getNZ(); iz++)
    for (int ix = 0; ix < f_p->getNX(); ix++) {
     Cell *c_p = f_p->getCell(ix, iy, iz);
     Cell *c_t = f_t->getCell(ix, iy, iz);
     Cell *c_f = f_f->getCell(ix, iy, iz);
+    // Vacuum shortcut.  With all three Q^tau zero every primitive variable,
+    // and hence the whole tensor, vanishes -- which is the case the original
+    // caught with its all-diagonal-zero test, only after having paid for the
+    // three recoveries and the eigendecomposition.  Over most of a 36x36 fm
+    // transverse grid this is the common case.
+    if (c_p->getQt() == 0. && c_t->getQt() == 0. && c_f->getQt() == 0.) {
+     MHeps[index3(ix, iy, iz)] = 0.;
+     continue;
+    }
+    double Q_p[7], Q_f[7], Q_t[7];
     c_p->getQ(Q_p);
     c_f->getQ(Q_f);
     c_t->getQ(Q_t);
     for (int i = 0; i < 7; i++) {
-     Q_p[i] = Q_p[i]/h_p->getTau();
-     Q_t[i] = Q_t[i]/h_t->getTau();
-     Q_f[i] = Q_f[i]/h_f->getTau();
+     Q_p[i] *= invTauP;
+     Q_t[i] *= invTauT;
+     Q_f[i] *= invTauF;
     }
-    getEnergyMomentumTensor(Ttemp, Q_p, Q_f, Q_t);
 
-    // calculation of the energy-momentum tensor
-    TMatrixD T(4,4);
-    for (int i=0; i<4; i++)
-     for (int j=0; j<4; j++){
-      T[i][j] = Ttemp[i][j]*gmunu[j][j];
+    double ep, pp, nbp, nqp, nsp, vxp, vyp, vzp;
+    double et, pt, nbt, nqt, nst, vxt, vyt, vzt;
+    double ef, pf, nbf, nqf, nsf, vxf, vyf, vzf;
+    transformPV(eos, Q_p, ep, pp, nbp, nqp, nsp, vxp, vyp, vzp);
+    transformPV(eos, Q_t, et, pt, nbt, nqt, nst, vxt, vyt, vzt);
+    transformPV(eos, Q_f, ef, pf, nbf, nqf, nsf, vxf, vyf, vzf);
+
+    const double gammap = 1.0/sqrt(1.0-vxp*vxp-vyp*vyp-vzp*vzp);
+    const double gammat = 1.0/sqrt(1.0-vxt*vxt-vyt*vyt-vzt*vzt);
+    const double gammaf = 1.0/sqrt(1.0-vxf*vxf-vyf*vyf-vzf*vzf);
+    const double u[3][4] = {
+     {gammap, gammap*vxp, gammap*vyp, gammap*vzp},
+     {gammat, gammat*vxt, gammat*vyt, gammat*vzt},
+     {gammaf, gammaf*vxf, gammaf*vyf, gammaf*vzf}};
+    const double w[3] = {ep + pp, et + pt, ef + pf};
+    const double P = pp + pt + pf;
+
+    if (w[0] <= 0. && w[1] <= 0. && w[2] <= 0. && P == 0.) {
+     MHeps[index3(ix, iy, iz)] = 0.;
+     continue;
     }
-    if (T[0][0] == 0 && T[1][1] == 0 && T[2][2] == 0 && T[3][3] == 0)
-     MHeps[ix][iy][iz] = 0;
-    else
-    {
-     // diagonalization of the energy-momentum tensor
-     TMatrixDEigen Te(T);
-     TMatrixD eigenValues = Te.GetEigenValues();
-     TMatrixD eigenVectors = Te.GetEigenVectors();
 
-     double energyDensity;
-     TVectorD v(4);
-     for (int i=0; i<4; i++) {
-      double vmuvmu = 0;
-      energyDensity = eigenValues[i][i];
-      v = TMatrixDColumn(eigenVectors,i);
-      for (int j=0; j<4; j++) {
-       vmuvmu += v[j]*v[j]*gmunu[j][j];
-      }
-      if (vmuvmu > 0 && energyDensity >= 0) {
-       break;
-      }
-      else if (i == 3) {
-       cout << "Multihydro: None of the eigenvectors is time-like, ";
-       cout << "using largest eigenvalue for energy density." << endl;
-       energyDensity = eigenValues[0][0];
-       v = TMatrixDColumn(eigenVectors,0);
-       break;
-      }
-     }
-
-     // save computed energy density into private field
-     MHeps[ix][iy][iz] = energyDensity;
-    }
+    bool notTimelike = false;
+    MHeps[index3(ix, iy, iz)] = landau::energyDensity(w, P, u, notTimelike);
+    if (notTimelike) nNotTimelike++;
    }
+ if (nNotTimelike > 0)
+  cout << "Multihydro: None of the eigenvectors is time-like in "
+       << nNotTimelike << " cells, "
+       << "using largest eigenvalue for energy density." << endl;
 }
 
 void MultiHydro::getMaxEnergyDensity()
 {
- double Q_p[7], Q_f[7], Q_t[7];
- double Ttemp[4][4];
+ #pragma omp parallel for collapse(2) schedule(dynamic, 2)
  for (int iy = 0; iy < f_p->getNY(); iy++)
   for (int iz = 0; iz < f_p->getNZ(); iz++)
    for (int ix = 0; ix < f_p->getNX(); ix++) {
+    double Q_p[7], Q_f[7], Q_t[7];
     Cell *c_p = f_p->getCell(ix, iy, iz);
     Cell *c_t = f_t->getCell(ix, iy, iz);
     Cell *c_f = f_f->getCell(ix, iy, iz);
@@ -1057,17 +1081,17 @@ void MultiHydro::getMaxEnergyDensity()
     transformPV(eos, Q_t, et, pt, nbt, nqt, nst, vxt, vyt, vzt);
     transformPV(eos, Q_f, ef, pf, nbf, nqf, nsf, vxf, vyf, vzf);
 
-    MHeps[ix][iy][iz] = max(ep, max(et, ef));
+    MHeps[index3(ix, iy, iz)] = max(ep, max(et, ef));
    }
 }
 
 void MultiHydro::getSumEnergyDensity()
 {
- double Q_p[7], Q_f[7], Q_t[7];
- double Ttemp[4][4];
+ #pragma omp parallel for collapse(2) schedule(dynamic, 2)
  for (int iy = 0; iy < f_p->getNY(); iy++)
   for (int iz = 0; iz < f_p->getNZ(); iz++)
    for (int ix = 0; ix < f_p->getNX(); ix++) {
+    double Q_p[7], Q_f[7], Q_t[7];
     Cell *c_p = f_p->getCell(ix, iy, iz);
     Cell *c_t = f_t->getCell(ix, iy, iz);
     Cell *c_f = f_f->getCell(ix, iy, iz);
@@ -1086,7 +1110,7 @@ void MultiHydro::getSumEnergyDensity()
     transformPV(eos, Q_t, et, pt, nbt, nqt, nst, vxt, vyt, vzt);
     transformPV(eos, Q_f, ef, pf, nbf, nqf, nsf, vxf, vyf, vzf);
 
-    MHeps[ix][iy][iz] = ep + et + ef;
+    MHeps[index3(ix, iy, iz)] = ep + et + ef;
    }
 }
 
@@ -1104,11 +1128,13 @@ void MultiHydro::getEnergyDensity()
 
 void MultiHydro::updateEnergyDensity()
 {
+ #pragma omp parallel for collapse(2) schedule(static)
  for (int ix = 0; ix < nx; ix++)
   for (int iy = 0; iy < ny; iy++)
    for (int iz = 0; iz < nz; iz++) {
-    MHepsPrev[ix][iy][iz] = MHeps[ix][iy][iz];
-    MHeps[ix][iy][iz] = 0.0;
+    const int i3 = index3(ix, iy, iz);
+    MHepsPrev[i3] = MHeps[i3];
+    MHeps[i3] = 0.0;
    }
 }
 
@@ -1119,28 +1145,42 @@ void MultiHydro::outputEnergyDensity()
  for (int ix = 0; ix < nx; ix++)
   for (int iy = 0; iy < ny; iy++)
    for (int iz = 0; iz < nz; iz++) {
-    fenergy << h_p->getTau() << "\t" << f_p->getX(ix) << "\t" << f_p->getY(iy) << "\t" << f_p->getZ(iz) << "\t" << MHeps[ix][iy][iz] << endl;
+    fenergy << h_p->getTau() << "\t" << f_p->getX(ix) << "\t" << f_p->getY(iy) << "\t" << f_p->getZ(iz) << "\t" << MHeps[index3(ix, iy, iz)] << endl;
    }
  fenergy.close();
 }
 
+// Remap one flat nx*ny*nz field onto a grid of twice the transverse extent but
+// the same cell count, following expandGrid2x().  Cell (ix,iy,iz) of the new,
+// coarser grid takes the value of cell (2*(ix-cx)+cx, 2*(iy-cy)+cy, iz) of the
+// old one; cells whose source falls outside the old grid are zeroed.
+void MultiHydro::remapField(double *field)
+{
+ std::vector<double> temp((size_t)nx * ny * nz, 0.0);
+ const int cx = (nx - 1) / 2, cy = (ny - 1) / 2;
+ for (int ix = 0; ix < nx; ix++) {
+  const int jx = 2 * (ix - cx) + cx;
+  const bool okx = (jx >= 0 && jx < nx);
+  for (int iy = 0; iy < ny; iy++) {
+   const int jy = 2 * (iy - cy) + cy;
+   if (okx && jy >= 0 && jy < ny)
+    for (int iz = 0; iz < nz; iz++)
+     temp[index3(ix, iy, iz)] = field[index3(jx, jy, iz)];
+   // else: left at the 0.0 the vector was initialised with
+  }
+ }
+ for (size_t k = 0; k < temp.size(); k++) field[k] = temp[k];
+}
+
 void MultiHydro::resizeMHeps()
 {
- double temp[nx][ny][nz];
- for (int ix = 0; ix < nx; ix++)
-  for (int iy = 0; iy < ny; iy++)
-   for (int iz = 0; iz < nz; iz++) {
-    if (2*(ix-(nx-1)/2)+(nx-1)/2 >= 0 && 2*(ix-(nx-1)/2)+(nx-1)/2 < nx && 2*(iy-(ny-1)/2)+(ny-1)/2 >=0 && 2*(iy-(ny-1)/2)+(ny-1)/2 < ny) {
-     temp[ix][iy][iz] = MHeps[2*(ix-(nx-1)/2)+(nx-1)/2][2*(iy-(ny-1)/2)+(ny-1)/2][iz];
-    } else {
-     temp[ix][iy][iz] = 0.;
-    }
-   }
- for (int ix = 0; ix < nx; ix++)
-  for (int iy = 0; iy < ny; iy++)
-   for (int iz = 0; iz < nz; iz++) {
-    MHeps[ix][iy][iz] = temp[ix][iy][iz];
-   }
+ // Both fields are remapped.  The original remapped only MHeps, which left
+ // MHepsPrev holding values on the pre-expansion geometry -- so the first
+ // freezeout cube built after a grid expansion paired a remapped MHeps with an
+ // unremapped MHepsPrev, and the e = ecrit level set was interpolated between
+ // two different grids along the time edges of the cube.
+ remapField(MHeps);
+ remapField(MHepsPrev);
 }
 
 int MultiHydro::findFreezeout(EoS* eosH)
@@ -1155,21 +1195,78 @@ int MultiHydro::findFreezeout(EoS* eosH)
  static double Etot_to_sampler[3] = {0., 0., 0.}, Nbtot_to_sampler[3] = {0., 0., 0.};
  static double E_dilute = 0., Nb_dilute = 0.;
 
- // allocating corner points for Cornelius
- double ****ccube = new double ***[2];
- for (int i1 = 0; i1 < 2; i1++) {
-  ccube[i1] = new double **[2];
-  for (int i2 = 0; i2 < 2; i2++) {
-   ccube[i1][i2] = new double *[2];
-   for (int i3 = 0; i3 < 2; i3++) {
-    ccube[i1][i2][i3] = new double[2];
+ // The three proper times, hoisted out of the cube loop: the corner assembly
+ // below called getTau() 3 x 2 x 8 x 7 = 336 times per cube.  Kept as a
+ // division rather than a multiplication by the reciprocal on purpose --
+ // multiplying by 1/tau shifts the result by an ulp and perturbs borderline
+ // surface elements, and with the cube screening in place the divisions that
+ // survive are far too few for it to be worth any loss of bit-exactness.
+ const double tauP = h_p->getTau();
+ const double tauT = h_t->getTau();
+ const double tauF = h_f->getTau();
+
+ // ---- parallel over ix slabs.
+ // Every accumulator and every stream write is buffered per slab and merged
+ // afterwards in ascending ix order, so the output file and the running
+ // totals are identical to the serial run and independent of the thread count
+ // and schedule.  Cornelius and its corner cube are per-thread: the
+ // MultiHydro::cornelius member is mutable shared state and must not be
+ // touched from inside a parallel region.
+ const int sx0 = 2, sx1 = nx - 2;
+ const int nSlab = (sx1 > sx0) ? (sx1 - sx0) : 0;
+ std::vector<std::ostringstream> bufP(nSlab), bufT(nSlab), bufF(nSlab);
+ struct SlabSums {
+  double EtotSurf[3] = {0., 0., 0.};
+  double EtotSurfPos[3] = {0., 0., 0.};
+  double EtotSurfNeg[3] = {0., 0., 0.};
+  double toSampler[3] = {0., 0., 0.};
+  double NbToSampler[3] = {0., 0., 0.};
+  double vEff[3] = {0., 0., 0.};
+  double E_dilute = 0., Nb_dilute = 0.;
+  long long nelements = 0, ne_pos = 0;
+ };
+ std::vector<SlabSums> acc(nSlab);
+ const double arrayDxLoc[4] = {h_p->getDtau(), dx, dy, dz};
+
+ #pragma omp parallel for schedule(dynamic, 1)
+ for (int ix = sx0; ix < sx1; ix++) {
+  // per-thread Cornelius instance and corner cube
+  Cornelius corn;
+  corn.init(4, ecrit, const_cast<double *>(arrayDxLoc));
+  double ****ccube = new double ***[2];
+  for (int i1 = 0; i1 < 2; i1++) {
+   ccube[i1] = new double **[2];
+   for (int i2 = 0; i2 < 2; i2++) {
+    ccube[i1][i2] = new double *[2];
+    for (int i3 = 0; i3 < 2; i3++) ccube[i1][i2][i3] = new double[2];
    }
   }
- }
-
- for (int ix = 2; ix < nx - 2; ix++)
+  SlabSums &sums = acc[ix - sx0];
+  std::ostringstream &outP = bufP[ix - sx0];
+  std::ostringstream &outT = bufT[ix - sx0];
+  std::ostringstream &outF = bufF[ix - sx0];
   for (int iy = 2; iy < ny - 2; iy++)
    for (int iz = 2; iz < nz - 2; iz++) {
+    // ---- Screen the cube first.
+    // Cornelius only returns surface elements when the e = ecrit level set
+    // actually cuts the space-time cube.  The sixteen corner energy densities
+    // are already tabulated in MHeps / MHepsPrev, so test them before
+    // assembling the corner data -- which for three fluids means 336 divided
+    // conserved-charge components plus 240 shear entries plus 24 bulk ones,
+    // all of it thrown away for the overwhelming majority of cubes, which lie
+    // wholly inside or wholly outside the surface.
+    int nAbove = 0;
+    for (int jx = 0; jx < 2; jx++)
+     for (int jy = 0; jy < 2; jy++)
+      for (int jz = 0; jz < 2; jz++) {
+       const int i3 = index3(ix + jx, iy + jy, iz + jz);
+       ccube[0][jx][jy][jz] = MHepsPrev[i3];
+       ccube[1][jx][jy][jz] = MHeps[i3];
+       if (ccube[0][jx][jy][jz] >= ecrit) nAbove++;
+       if (ccube[1][jx][jy][jz] >= ecrit) nAbove++;
+      }
+    if (nAbove == 0 || nAbove == 16) continue;  // no surface in this cube
+
     double QCube_p[2][2][2][2][7], QCube_f[2][2][2][2][7], QCube_t[2][2][2][2][7];
     // array for storing full energy-momentum tensor of all three fluids at corners
     double piSquare_p[2][2][2][10], PiSquare_p[2][2][2];
@@ -1180,8 +1277,6 @@ int MultiHydro::findFreezeout(EoS* eosH)
     for (int jx = 0; jx < 2; jx++)
      for (int jy = 0; jy < 2; jy++)
       for (int jz = 0; jz < 2; jz++) {
-       ccube[0][jx][jy][jz] = MHepsPrev[ix + jx][iy + jy][iz + jz];
-       ccube[1][jx][jy][jz] = MHeps[ix + jx][iy + jy][iz + jz];
        Cell *cc_p = f_p->getCell(ix + jx, iy + jy, iz + jz);
        Cell *cc_t = f_t->getCell(ix + jx, iy + jy, iz + jz);
        Cell *cc_f = f_f->getCell(ix + jx, iy + jy, iz + jz);
@@ -1190,17 +1285,17 @@ int MultiHydro::findFreezeout(EoS* eosH)
        cc_f->getQ(QCube_f[1][jx][jy][jz]);
        cc_t->getQ(QCube_t[1][jx][jy][jz]);
        for (int i = 0; i < 7; i++) {
-        QCube_p[1][jx][jy][jz][i] = QCube_p[1][jx][jy][jz][i]/h_p->getTau();
-        QCube_t[1][jx][jy][jz][i] = QCube_t[1][jx][jy][jz][i]/h_t->getTau();
-        QCube_f[1][jx][jy][jz][i] = QCube_f[1][jx][jy][jz][i]/h_f->getTau();
+        QCube_p[1][jx][jy][jz][i] = QCube_p[1][jx][jy][jz][i]/tauP;
+        QCube_t[1][jx][jy][jz][i] = QCube_t[1][jx][jy][jz][i]/tauT;
+        QCube_f[1][jx][jy][jz][i] = QCube_f[1][jx][jy][jz][i]/tauF;
        }
        cc_p->getQprev(QCube_p[0][jx][jy][jz]);
        cc_f->getQprev(QCube_f[0][jx][jy][jz]);
        cc_t->getQprev(QCube_t[0][jx][jy][jz]);
        for (int i = 0; i < 7; i++) {
-        QCube_p[0][jx][jy][jz][i] = QCube_p[0][jx][jy][jz][i]/h_p->getTau();
-        QCube_t[0][jx][jy][jz][i] = QCube_t[0][jx][jy][jz][i]/h_t->getTau();
-        QCube_f[0][jx][jy][jz][i] = QCube_f[0][jx][jy][jz][i]/h_f->getTau();
+        QCube_p[0][jx][jy][jz][i] = QCube_p[0][jx][jy][jz][i]/tauP;
+        QCube_t[0][jx][jy][jz][i] = QCube_t[0][jx][jy][jz][i]/tauT;
+        QCube_f[0][jx][jy][jz][i] = QCube_f[0][jx][jy][jz][i]/tauF;
        }
        for (int ii = 0; ii < 4; ii++)
         for (int jj = 0; jj <= ii; jj++) {
@@ -1214,10 +1309,10 @@ int MultiHydro::findFreezeout(EoS* eosH)
     }
 
     // cornelius
-    cornelius->find_surface_4d(ccube);
-    const int Nsegm = cornelius->get_Nelements();
+    corn.find_surface_4d(ccube);
+    const int Nsegm = corn.get_Nelements();
     for (int isegm = 0; isegm < Nsegm; isegm++) {
-     nelements++;
+     sums.nelements++;
 
      // interpolation procedure
      double PiC_p = 0., PiC_t = 0., PiC_f = 0.;
@@ -1232,14 +1327,14 @@ int MultiHydro::findFreezeout(EoS* eosH)
       piC_t[ii] = 0.0;
       piC_f[ii] = 0.0;
      }
-     double wCenT[2] = {1. - cornelius->get_centroid_elem(isegm, 0) / h_p->getDtau(),
-                        cornelius->get_centroid_elem(isegm, 0) / h_p->getDtau()};
-     double wCenX[2] = {1. - cornelius->get_centroid_elem(isegm, 1) / dx,
-                        cornelius->get_centroid_elem(isegm, 1) / dx};
-     double wCenY[2] = {1. - cornelius->get_centroid_elem(isegm, 2) / dy,
-                        cornelius->get_centroid_elem(isegm, 2) / dy};
-     double wCenZ[2] = {1. - cornelius->get_centroid_elem(isegm, 3) / dz,
-                        cornelius->get_centroid_elem(isegm, 3) / dz};
+     double wCenT[2] = {1. - corn.get_centroid_elem(isegm, 0) / h_p->getDtau(),
+                        corn.get_centroid_elem(isegm, 0) / h_p->getDtau()};
+     double wCenX[2] = {1. - corn.get_centroid_elem(isegm, 1) / dx,
+                        corn.get_centroid_elem(isegm, 1) / dx};
+     double wCenY[2] = {1. - corn.get_centroid_elem(isegm, 2) / dy,
+                        corn.get_centroid_elem(isegm, 2) / dy};
+     double wCenZ[2] = {1. - corn.get_centroid_elem(isegm, 3) / dz,
+                        corn.get_centroid_elem(isegm, 3) / dz};
 
      for (int jt = 0; jt < 2; jt++)
       for (int jx = 0; jx < 2; jx++)
@@ -1257,11 +1352,11 @@ int MultiHydro::findFreezeout(EoS* eosH)
 
      /*for (int i = 0; i < 4; i++)
       for (int j = 0; j < 4; j++)
-       TmunuC[i][j] = TmunuC[i][j] / (h_p->getTau() - h_p->getDtau() + cornelius->get_centroid_elem(isegm, 0));
+       TmunuC[i][j] = TmunuC[i][j] / (h_p->getTau() - h_p->getDtau() + corn.get_centroid_elem(isegm, 0));
      for (int i = 0; i < 7; i++) {
-      QC_p[i] = QC_p[i] / (h_p->getTau() - h_p->getDtau() + cornelius->get_centroid_elem(isegm, 0));
-      QC_t[i] = QC_t[i] / (h_t->getTau() - h_t->getDtau() + cornelius->get_centroid_elem(isegm, 0));
-      QC_f[i] = QC_f[i] / (h_f->getTau() - h_f->getDtau() + cornelius->get_centroid_elem(isegm, 0));
+      QC_p[i] = QC_p[i] / (h_p->getTau() - h_p->getDtau() + corn.get_centroid_elem(isegm, 0));
+      QC_t[i] = QC_t[i] / (h_t->getTau() - h_t->getDtau() + corn.get_centroid_elem(isegm, 0));
+      QC_f[i] = QC_f[i] / (h_f->getTau() - h_f->getDtau() + corn.get_centroid_elem(isegm, 0));
      }*/
      double ep, pp, nbp, nqp, nsp, vxp, vyp, vzp;
      double et, pt, nbt, nqt, nst, vxt, vyt, vzt;
@@ -1309,7 +1404,7 @@ int MultiHydro::findFreezeout(EoS* eosH)
         PiC_t += PiSquare_t[jx][jy][jz] * wCenX[jx] * wCenY[jy] * wCenZ[jz];
         PiC_f += PiSquare_f[jx][jy][jz] * wCenX[jx] * wCenY[jy] * wCenZ[jz];
        }
-     double etaC = f_p->getZ(iz) + cornelius->get_centroid_elem(isegm, 3);
+     double etaC = f_p->getZ(iz) + corn.get_centroid_elem(isegm, 3);
      transformToLab(etaC, vxp, vyp, vzp);
      transformToLab(etaC, vxt, vyt, vzt);
      transformToLab(etaC, vxf, vyf, vzf);
@@ -1319,17 +1414,17 @@ int MultiHydro::findFreezeout(EoS* eosH)
      double uC_p[4] = {gammaC_p, gammaC_p * vxp, gammaC_p * vyp, gammaC_p * vzp};
      double uC_t[4] = {gammaC_t, gammaC_t * vxt, gammaC_t * vyt, gammaC_t * vzt};
      double uC_f[4] = {gammaC_f, gammaC_f * vxf, gammaC_f * vyf, gammaC_f * vzf};
-     const double tauC = h_p->getTau() - h_p->getDtau() + cornelius->get_centroid_elem(isegm, 0);
+     const double tauC = h_p->getTau() - h_p->getDtau() + corn.get_centroid_elem(isegm, 0);
      double dsigma[4], dsds;
      // ---- transform dsigma to lab.frame :
      const double ch = cosh(etaC);
      const double sh = sinh(etaC);
-     dsigma[0] = tauC * (ch * cornelius->get_normal_elem(0, 0) -
-                         sh / tauC * cornelius->get_normal_elem(0, 3));
-     dsigma[3] = tauC * (-sh * cornelius->get_normal_elem(0, 0) +
-                         ch / tauC * cornelius->get_normal_elem(0, 3));
-     dsigma[1] = tauC * cornelius->get_normal_elem(0, 1);
-     dsigma[2] = tauC * cornelius->get_normal_elem(0, 2);
+     dsigma[0] = tauC * (ch * corn.get_normal_elem(0, 0) -
+                         sh / tauC * corn.get_normal_elem(0, 3));
+     dsigma[3] = tauC * (-sh * corn.get_normal_elem(0, 0) +
+                         ch / tauC * corn.get_normal_elem(0, 3));
+     dsigma[1] = tauC * corn.get_normal_elem(0, 1);
+     dsigma[2] = tauC * corn.get_normal_elem(0, 2);
      dsds = dsigma[0]*dsigma[0] - dsigma[1]*dsigma[1] - dsigma[2]*dsigma[2] - dsigma[3]*dsigma[3];
      double dVEff_p = 0.0, dVEff_t = 0.0, dVEff_f = 0.0;
      for (int ii = 0; ii < 4; ii++) {
@@ -1337,10 +1432,10 @@ int MultiHydro::findFreezeout(EoS* eosH)
       dVEff_t += dsigma[ii] * uC_t[ii];
       dVEff_f += dsigma[ii] * uC_f[ii];
      }
-     if (dVEff_p > 0) ne_pos++;
-     vEff_p += dVEff_p;
-     vEff_t += dVEff_t;
-     vEff_f += dVEff_f;
+     if (dVEff_p > 0) sums.ne_pos++;
+     sums.vEff[0] += dVEff_p;
+     sums.vEff[1] += dVEff_t;
+     sums.vEff[2] += dVEff_f;
 
      double picart_p[10];
      double picart_t[10];
@@ -1418,114 +1513,142 @@ int MultiHydro::findFreezeout(EoS* eosH)
      dNbsurf[0] = nbp * dVEff_p;
      dNbsurf[1] = nbt * dVEff_t;
      dNbsurf[2] = nbf * dVEff_f;
-     EtotSurf[0] += dEtotSurf[0];
-     EtotSurf[1] += dEtotSurf[1];
-     EtotSurf[2] += dEtotSurf[2];
-     if (dEtotSurf[0] > 0) EtotSurf_positive[0] += dEtotSurf[0];
-     else EtotSurf_negative[0] += dEtotSurf[0];
-     if (dEtotSurf[1] > 0) EtotSurf_positive[1] += dEtotSurf[1];
-     else EtotSurf_negative[1] += dEtotSurf[1];
-     if (dEtotSurf[2] > 0) EtotSurf_positive[2] += dEtotSurf[2];
-     else EtotSurf_negative[2] += dEtotSurf[2];
+     for (int ifl = 0; ifl < 3; ifl++) {
+      sums.EtotSurf[ifl] += dEtotSurf[ifl];
+      if (dEtotSurf[ifl] > 0) sums.EtotSurfPos[ifl] += dEtotSurf[ifl];
+      else sums.EtotSurfNeg[ifl] += dEtotSurf[ifl];
+     }
 
      // exclude segments which fulfills dSigma_0 < 0 & dSigma^2 > 0 - those cells have energy flow into >
      if (dsds > 0) {
       if (dsigma[0] > 0) {
        if(TCp > tinyT) {
-        Etot_to_sampler[0] += dEtotSurf[0];  // projectile
-        Nbtot_to_sampler[0] += dNbsurf[0];  // projectile
+        sums.toSampler[0] += dEtotSurf[0];  // projectile
+        sums.NbToSampler[0] += dNbsurf[0];  // projectile
         printFreezeout(
-         fmhfreeze_p,
-         h_p->getTau() - h_p->getDtau() + cornelius->get_centroid_elem(isegm, 0),
-         f_p->getX(ix) + cornelius->get_centroid_elem(isegm, 1),
-         f_p->getY(iy) + cornelius->get_centroid_elem(isegm, 2),
-         f_p->getZ(iz) + cornelius->get_centroid_elem(isegm, 3),
+         outP,
+         h_p->getTau() - h_p->getDtau() + corn.get_centroid_elem(isegm, 0),
+         f_p->getX(ix) + corn.get_centroid_elem(isegm, 1),
+         f_p->getY(iy) + corn.get_centroid_elem(isegm, 2),
+         f_p->getZ(iz) + corn.get_centroid_elem(isegm, 3),
          dsigma, uC_p, TCp, mubCp, muqCp, musCp, picart_p, PiC_p, dVEff_p);
        } else {
-        E_dilute += dEtotSurf[0];
-        Nb_dilute += dNbsurf[0];
+        sums.E_dilute += dEtotSurf[0];
+        sums.Nb_dilute += dNbsurf[0];
        }
        if(TCt > tinyT) {
-        Etot_to_sampler[1] += dEtotSurf[1];  // target
-        Nbtot_to_sampler[1] += dNbsurf[1];  // target
+        sums.toSampler[1] += dEtotSurf[1];  // target
+        sums.NbToSampler[1] += dNbsurf[1];  // target
         printFreezeout(
-         fmhfreeze_t,
-         h_t->getTau() - h_t->getDtau() + cornelius->get_centroid_elem(isegm, 0),
-         f_t->getX(ix) + cornelius->get_centroid_elem(isegm, 1),
-         f_t->getY(iy) + cornelius->get_centroid_elem(isegm, 2),
-         f_t->getZ(iz) + cornelius->get_centroid_elem(isegm, 3),
+         outT,
+         h_t->getTau() - h_t->getDtau() + corn.get_centroid_elem(isegm, 0),
+         f_t->getX(ix) + corn.get_centroid_elem(isegm, 1),
+         f_t->getY(iy) + corn.get_centroid_elem(isegm, 2),
+         f_t->getZ(iz) + corn.get_centroid_elem(isegm, 3),
          dsigma, uC_t, TCt, mubCt, muqCt, musCt, picart_t, PiC_t, dVEff_t);
        } else {
-        E_dilute += dEtotSurf[1];
-        Nb_dilute += dNbsurf[1];
+        sums.E_dilute += dEtotSurf[1];
+        sums.Nb_dilute += dNbsurf[1];
        }
        if(TCf > tinyT) {
-        Etot_to_sampler[2] += dEtotSurf[2];  // fireball
-        Nbtot_to_sampler[2] += dNbsurf[2];  // fireball
+        sums.toSampler[2] += dEtotSurf[2];  // fireball
+        sums.NbToSampler[2] += dNbsurf[2];  // fireball
         printFreezeout(
-         fmhfreeze_f,
-         h_f->getTau() - h_f->getDtau() + cornelius->get_centroid_elem(isegm, 0),
-         f_f->getX(ix) + cornelius->get_centroid_elem(isegm, 1),
-         f_f->getY(iy) + cornelius->get_centroid_elem(isegm, 2),
-         f_f->getZ(iz) + cornelius->get_centroid_elem(isegm, 3),
+         outF,
+         h_f->getTau() - h_f->getDtau() + corn.get_centroid_elem(isegm, 0),
+         f_f->getX(ix) + corn.get_centroid_elem(isegm, 1),
+         f_f->getY(iy) + corn.get_centroid_elem(isegm, 2),
+         f_f->getZ(iz) + corn.get_centroid_elem(isegm, 3),
          dsigma, uC_f, TCf, mubCf, muqCf, musCf, picart_f, PiC_f, dVEff_f);
        } else {
-        E_dilute += dEtotSurf[2];
-        Nb_dilute += dNbsurf[2];
+        sums.E_dilute += dEtotSurf[2];
+        sums.Nb_dilute += dNbsurf[2];
        }
       }
      } else {
       if (dEtotSurf[0] > 0 && dVEff_p > 0) {
        if(TCp > tinyT) {
-        Etot_to_sampler[0] += dEtotSurf[0];
-        Nbtot_to_sampler[0] += dNbsurf[0];
+        sums.toSampler[0] += dEtotSurf[0];
+        sums.NbToSampler[0] += dNbsurf[0];
         printFreezeout(
-        fmhfreeze_p,
-        h_p->getTau() - h_p->getDtau() + cornelius->get_centroid_elem(isegm, 0),
-        f_p->getX(ix) + cornelius->get_centroid_elem(isegm, 1),
-        f_p->getY(iy) + cornelius->get_centroid_elem(isegm, 2),
-        f_p->getZ(iz) + cornelius->get_centroid_elem(isegm, 3),
+        outP,
+        h_p->getTau() - h_p->getDtau() + corn.get_centroid_elem(isegm, 0),
+        f_p->getX(ix) + corn.get_centroid_elem(isegm, 1),
+        f_p->getY(iy) + corn.get_centroid_elem(isegm, 2),
+        f_p->getZ(iz) + corn.get_centroid_elem(isegm, 3),
         dsigma, uC_p, TCp, mubCp, muqCp, musCp, picart_p, PiC_p, dVEff_p);
        } else {
-        E_dilute += dEtotSurf[0];
-        Nb_dilute += dNbsurf[0];
+        sums.E_dilute += dEtotSurf[0];
+        sums.Nb_dilute += dNbsurf[0];
        }
       }
       if (dEtotSurf[1] > 0 && dVEff_t > 0) {
        if(TCt > tinyT) {
-        Etot_to_sampler[1] += dEtotSurf[1];
-        Nbtot_to_sampler[1] += dNbsurf[1];
+        sums.toSampler[1] += dEtotSurf[1];
+        sums.NbToSampler[1] += dNbsurf[1];
         printFreezeout(
-        fmhfreeze_t,
-        h_t->getTau() - h_t->getDtau() + cornelius->get_centroid_elem(isegm, 0),
-        f_t->getX(ix) + cornelius->get_centroid_elem(isegm, 1),
-        f_t->getY(iy) + cornelius->get_centroid_elem(isegm, 2),
-        f_t->getZ(iz) + cornelius->get_centroid_elem(isegm, 3),
+        outT,
+        h_t->getTau() - h_t->getDtau() + corn.get_centroid_elem(isegm, 0),
+        f_t->getX(ix) + corn.get_centroid_elem(isegm, 1),
+        f_t->getY(iy) + corn.get_centroid_elem(isegm, 2),
+        f_t->getZ(iz) + corn.get_centroid_elem(isegm, 3),
         dsigma, uC_t, TCt, mubCt, muqCt, musCt, picart_t, PiC_t, dVEff_t);
        } else {
-        E_dilute += dEtotSurf[1];
-        Nb_dilute += dNbsurf[1];
+        sums.E_dilute += dEtotSurf[1];
+        sums.Nb_dilute += dNbsurf[1];
        }
       }
       if (dEtotSurf[2] > 0 && dVEff_f > 0){
        if(TCf > tinyT) {
-        Etot_to_sampler[2] += dEtotSurf[2];
-        Nbtot_to_sampler[2] += dNbsurf[2];
+        sums.toSampler[2] += dEtotSurf[2];
+        sums.NbToSampler[2] += dNbsurf[2];
         printFreezeout(
-        fmhfreeze_f,
-        h_f->getTau() - h_f->getDtau() + cornelius->get_centroid_elem(isegm, 0),
-        f_f->getX(ix) + cornelius->get_centroid_elem(isegm, 1),
-        f_f->getY(iy) + cornelius->get_centroid_elem(isegm, 2),
-        f_f->getZ(iz) + cornelius->get_centroid_elem(isegm, 3),
+        outF,
+        h_f->getTau() - h_f->getDtau() + corn.get_centroid_elem(isegm, 0),
+        f_f->getX(ix) + corn.get_centroid_elem(isegm, 1),
+        f_f->getY(iy) + corn.get_centroid_elem(isegm, 2),
+        f_f->getZ(iz) + corn.get_centroid_elem(isegm, 3),
         dsigma, uC_f, TCf, mubCf, muqCf, musCf, picart_f, PiC_f, dVEff_f);
        } else {
-        E_dilute += dEtotSurf[2];
-        Nb_dilute += dNbsurf[2];
+        sums.E_dilute += dEtotSurf[2];
+        sums.Nb_dilute += dNbsurf[2];
        }
       }
      } // other cases when surface elements are retained for hadron sampling
     } // loop over segments from Cornelius
- } // the outer loop over fluid cells
+   } // the iz loop
+  for (int i1 = 0; i1 < 2; i1++) {
+   for (int i2 = 0; i2 < 2; i2++) {
+    for (int i3 = 0; i3 < 2; i3++) delete[] ccube[i1][i2][i3];
+    delete[] ccube[i1][i2];
+   }
+   delete[] ccube[i1];
+  }
+  delete[] ccube;
+ } // the outer, parallel loop over ix slabs
+
+ // ---- merge the slabs in ascending ix order, so the totals and the contents
+ // of the three freezeout files are bit-for-bit what the serial loop produced
+ for (int k = 0; k < nSlab; k++) {
+  const SlabSums &sums = acc[k];
+  nelements += (int)sums.nelements;
+  ne_pos += (int)sums.ne_pos;
+  vEff_p += sums.vEff[0];
+  vEff_t += sums.vEff[1];
+  vEff_f += sums.vEff[2];
+  for (int ifl = 0; ifl < 3; ifl++) {
+   EtotSurf[ifl] += sums.EtotSurf[ifl];
+   EtotSurf_positive[ifl] += sums.EtotSurfPos[ifl];
+   EtotSurf_negative[ifl] += sums.EtotSurfNeg[ifl];
+   Etot_to_sampler[ifl] += sums.toSampler[ifl];
+   Nbtot_to_sampler[ifl] += sums.NbToSampler[ifl];
+  }
+  E_dilute += sums.E_dilute;
+  Nb_dilute += sums.Nb_dilute;
+  fmhfreeze_p << bufP[k].str();
+  fmhfreeze_t << bufT[k].str();
+  fmhfreeze_f << bufF[k].str();
+ }
  if( verbose == 1 ) {
   cout << setw(10) << h_p->getTau() << setw(10) << nelements << "\t" << ne_pos << "\t"
        << EtotSurf[0] << "\t" << EtotSurf_positive[0] << "\t" << EtotSurf_negative[0] << "\t"
@@ -1537,16 +1660,7 @@ int MultiHydro::findFreezeout(EoS* eosH)
   cout << "Dilute patches contain (Etot, Nbtot):  " << E_dilute << "  " << Nb_dilute << endl;
  }
  swap(eos, eosH); // get back to the hydrodynamic EoS
- for (int i1 = 0; i1 < 2; i1++) {
-  for (int i2 = 0; i2 < 2; i2++) {
-   for (int i3 = 0; i3 < 2; i3++) {
-    delete[] ccube[i1][i2][i3];
-   }
-   delete[] ccube[i1][i2];
-  }
-  delete[] ccube[i1];
- }
- delete[] ccube;
+ // the corner cube is allocated and freed per thread inside the ix loop
  if (nelements == 0 && h_p->getTau() > 5 + tau0)
   return 1;   // particlization surface ended - return 1 for the evolution to stop
   //return 0;
@@ -1554,7 +1668,7 @@ int MultiHydro::findFreezeout(EoS* eosH)
   return 0;   // return 0 for the evolution to continue
 }
 
-void MultiHydro::printFreezeout(std::ofstream &fout, double t, double x, double y, double z, double dsigma[4], double uC[4], double TC, double mub, double muq, double mus, double picart[10], double PiC, double dVEff)
+void MultiHydro::printFreezeout(std::ostream &fout, double t, double x, double y, double z, double dsigma[4], double uC[4], double TC, double mub, double muq, double mus, double picart[10], double PiC, double dVEff)
 {
  fout.precision(15);
  fout << setw(24) << t << setw(24) << x << setw(24) << y << setw(24) << z;
@@ -1652,7 +1766,7 @@ double MultiHydro::Fermi(double nb) {
 }
 
 double MultiHydro::getLocalEnergyDensity(double x, double y, double eta) {
-// this function returns effective energy density, pre-computed in the MHeps[][][] array,
+// this function returns effective energy density, pre-computed in the MHeps[] array,
 // at an arbitrary position using tri-linear interpolation over the table(array)
  int ix = (int)((x - f_p->getX(0))/dx);
  int iy = (int)((y - f_p->getY(0))/dy);
@@ -1671,7 +1785,7 @@ double MultiHydro::getLocalEnergyDensity(double x, double y, double eta) {
  for(int i=0; i<2; i++)
  for(int j=0; j<2; j++)
  for(int k=0; k<2; k++)
-  interpolatedEps += wx[i]*wy[j]*wz[k]*MHeps[ix+i][iy+j][iz+k];
+  interpolatedEps += wx[i]*wy[j]*wz[k]*MHeps[index3(ix+i, iy+j, iz+k)];
  return interpolatedEps;
 }
 

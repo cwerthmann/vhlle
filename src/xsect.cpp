@@ -3,7 +3,6 @@
 #include <sstream>
 #include <cstdlib>
 #include <cmath>
-#include <TGraph.h>
 #include "xsect.h"
 #include "inc.h"
 
@@ -25,8 +24,8 @@ CrossSections::CrossSections(double _alpha, double _beta)
  float sigmaT [] =
  {1.67, 1.48, 1.32, 1.23, 1.26, 1.37, 1.25, 1.10, 1.01, 0.86,
   0.75,  0.68,  0.62,  0.55,  0.49,  0.45,  0.41,  0.38,  0.35,  0.33};
- gSigmaE = new TGraph(sizeof(Ekin)/sizeof(float), Ekin, sigmaE);
- gSigmaT = new TGraph(sizeof(Ekin)/sizeof(float), Ekin, sigmaT);
+ gSigmaE.init(sizeof(Ekin)/sizeof(float), Ekin, sigmaE);
+ gSigmaT.init(sizeof(Ekin)/sizeof(float), Ekin, sigmaT);
  // reading tabular data for pim-p total cross section
  ifstream finpimp("tables/pimprot-pdd.dat") ;//14
  //ifstream finpimp("tables/pimprot-pdd-nodelta.dat") ;//15
@@ -49,7 +48,7 @@ CrossSections::CrossSections(double _alpha, double _beta)
   i++;
  }
  cout << "pim-p cross section: " << i << " lines read.\n";
- gSigmaPimp = new TGraph(i, sqrtsm, sigpimp);
+ gSigmaPimp.init(i, sqrtsm, sigpimp);
 
  // reading tabular data for pip-p total cross section
  ifstream finpipp("tables/pipprot-pdd.dat");//14
@@ -69,7 +68,7 @@ CrossSections::CrossSections(double _alpha, double _beta)
   i++;
  }
  cout << "pip-p cross section: " << i << " lines read.\n";
- gSigmaPipp = new TGraph(i, sqrtsp, sigpipp);
+ gSigmaPipp.init(i, sqrtsp, sigpipp);
 }
 
 // cross sections [fm^2] as a function of cm energy sqrt(s)
@@ -127,8 +126,8 @@ void CrossSections::Ivanov(double Ekin, double& sigmaT,
   sigmaE = 0.;
  }
  else if(Ekin>0.2 && Ekin<10){
-  sigmaT = gSigmaT->Eval(Ekin);
-  sigmaE = gSigmaE->Eval(Ekin);
+  sigmaT = gSigmaT.eval(Ekin);
+  sigmaE = gSigmaE.eval(Ekin);
  }
  else if(Ekin>=10. && Ekin<100.){
   sigmaT = 1.365 * pow(Ekin, -0.623);
@@ -169,12 +168,12 @@ double CrossSections::piN(double sqrts)
     cpip=22.8185019412713, apim=7.64349878021023, bpim=1.98522045695842, cpim=24.0705206942523,
     api2=0.574008225964179, bpi2=22.7230259927231, sigmapimp, sigmapipp;
  if (sqrts < 1.74) {
-  sigmapimp=gSigmaPimp->Eval(sqrts);
-  sigmapipp=gSigmaPipp->Eval(sqrts);
+  sigmapimp=gSigmaPimp.eval(sqrts);
+  sigmapipp=gSigmaPipp.eval(sqrts);
   xsect=0.5*(sigmapimp+sigmapipp);
  }else if(sqrts<1.97){
   sigmapimp=apim*pow(std::log(sqrts)-bpim,2)+cpim;
-  sigmapipp=gSigmaPipp->Eval(sqrts);
+  sigmapipp=gSigmaPipp.eval(sqrts);
   xsect=0.5*(sigmapimp+sigmapipp);
  }else if(sqrts<10.0){
   sigmapimp=apim*pow(std::log(sqrts)-bpim,2)+cpim;

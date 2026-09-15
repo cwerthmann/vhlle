@@ -1,3 +1,4 @@
+#include <fstream>
 #include "cll.h"
 
 class EoS;

@@ -1,5 +1,6 @@
 #include <vector>
 #include <cmath>
+#include <iosfwd>
 
 class Fluid;
 class Hydro;
@@ -18,13 +19,30 @@ class MultiHydro {
  CrossSections *xsect;
  std::ofstream fmhfreeze_p, fmhfreeze_f, fmhfreeze_t, ffricx, ffricy, ffricz, ffricall, EfIfile;
  std::string EfIfilename;
- double ***MHeps, ***MHepsPrev;
+ // Landau-frame energy density of the three-fluid mixture, and its value at
+ // the previous timestep.  Plain flat arrays of nx*ny*nz doubles, addressed
+ // through index3() below.  These were arrays of arrays of pointers; the row
+ // pointers bought nothing but two dependent loads per access and ~15000
+ // extra allocations to free.
+ double *MHeps, *MHepsPrev;
  double **EfITable;
  int NTemp, Nvatilde,xsectparam;
  double Tmax;
  std::vector<std::vector<double>> retardedFriction;
  double ecrit, vEff_p, vEff_t, vEff_f;
  int nx, ny, nz;
+
+ // Flat index into MHeps / MHepsPrev.  Row-major with iz contiguous, so the
+ // innermost loop of a (ix, iy, iz) nest walks memory in order and the
+ // compiler strength-reduces the multiplications out of it.
+ //
+ // nx, ny and nz are fixed for the lifetime of the object: setFluids() re-reads
+ // them, but expandGrid2x() builds the new Fluid with the same getNX/getNY/getNZ
+ // and only doubles the physical extent, so the cell counts -- and therefore
+ // this mapping and the allocation below -- never change.
+ inline int index3(int ix, int iy, int iz) const {
+  return (ix * ny + iy) * nz + iz;
+ }
  double dx, dy, dz, dtau, tau0, sNN, Etot, Q0min;
  double xi_fa, formationTime, lambda, xi_q, xi_h;
  int frictionModel, decreasingFormTime, unification, physicality_limiter;
@@ -57,9 +75,11 @@ public:
  void getSumEnergyDensity();
  void updateEnergyDensity();
  int  findFreezeout(EoS *eosH);
- void printFreezeout(std::ofstream &fout, double t, double x, double y, double z, double dsigma[4], double uC[4], double TC, double mub, double muq, double mus, double picart[10], double PiC, double dVEff);
+ void printFreezeout(std::ostream &fout, double t, double x, double y, double z, double dsigma[4], double uC[4], double TC, double mub, double muq, double mus, double picart[10], double PiC, double dVEff);
  void outputEnergyDensity();
  void resizeMHeps();
+ // remap a single flat nx*ny*nz field after a transverse grid expansion
+ void remapField(double *field);
  void setFluids(Fluid *f_p, Fluid *f_t, Fluid *f_f, Hydro *h_p, Hydro *h_t,
   Hydro* h_f);
  void addRetardedFriction(double flux, double x, double y, double z, double t, int i);

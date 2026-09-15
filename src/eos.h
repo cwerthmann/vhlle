@@ -1,8 +1,7 @@
 #pragma once
 #include <cmath>
 #include <string>
-
-class TGraph;
+#include "interp1d.h"
 
 // NOTATIONS:
 //  e = energy density (local rest frame), [GeV/fm^3]
@@ -46,7 +45,8 @@ public:
 // each variant is enabled by compiling with -D SIMPLE / -D TABLE
 class EoSs : public EoS {
 private:
- TGraph *gp, *gT, *gmu;
+ // were ROOT TGraphs; see interp1d.h for why they had to go
+ Interp1D gp, gT, gmu;
 
 public:
  EoSs(std::string fname, int ncols);

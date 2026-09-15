@@ -72,6 +72,10 @@ void Hydro::setDtau(double deltaTau) {
 void Hydro::hlle_flux(Cell *left, Cell *right, int direction, int mode) {
  // for all variables, suffix "l" = left state, "r" = right state
  // with respect to the cell boundary
+ // Nothing can flow between two empty cells, and at these grid sizes most
+ // interfaces are exactly that.  Testing Q[T_] first avoids two full
+ // primitive-variable recoveries (a Newton/bisection solve each) per skip.
+ if (left->getQt() == 0. && right->getQt() == 0.) return;
  double el, er, pl, pr, nbl, nql, nsl, nbr, nqr, nsr, vxl, vxr, vyl, vyr, vzl,
      vzr, bl = 0., br = 0., csb, vb, El, Er, dx = 0.;
  double Ftl = 0., Fxl = 0., Fyl = 0., Fzl = 0., Fbl = 0., Fql = 0., Fsl = 0.,
@@ -611,13 +615,24 @@ void Hydro::setNSvalues() {
 }
 
 void Hydro::ISformal() {
- double e, p, nb, nq, ns, vx, vy, vz, T, mub, muq, mus;
- double piNS[4][4], sigNS[4][4], PiNS, dmu[4][4], du, pi[4][4], piH[4][4], Pi, PiH;
  const double gmumu[4] = {1., -1., -1., -1.};
 
+ // Both loops below are safe to split over (ix, iy) because each one reads
+ // only quantities the other loop wrote, and writes only to its own cell:
+ //  - loop #1 reads velocities (of the cell and, inside NSquant, of its
+ //    neighbours) and writes piH0/pi0/flux of the centre cell;
+ //  - loop #3 reads pi0/piH0 of neighbours -- settled by then -- and writes
+ //    pi/piH/Pi/PiH/viscCorrCut/flux of the centre cell.
+ // All the scratch that used to live at function scope is now declared per
+ // thread inside the iy body; it was shared state, and that is what made the
+ // old code impossible to parallelise here.
+
  // loop #1 (relaxation+source terms)
+ #pragma omp parallel for collapse(2) schedule(dynamic, 2)
  for (int ix = 0; ix < f->getNX(); ix++)
-  for (int iy = 0; iy < f->getNY(); iy++)
+  for (int iy = 0; iy < f->getNY(); iy++) {
+   double e, p, nb, nq, ns, vx, vy, vz, T, mub, muq, mus;
+   double piNS[4][4], sigNS[4][4], PiNS, dmu[4][4], du;
    for (int iz = 0; iz < f->getNZ(); iz++) {
     Cell *c = f->getCell(ix, iy, iz);
     c->getPrimVarPrev(eos, tau - dt, e, p, nb, nq, ns, vx, vy, vz);
@@ -783,11 +798,15 @@ void Hydro::ISformal() {
       }
      c->addPi0(-delPiPi * c->getPiH0() * du / gamma * dt);
     }  // end non-empty cell
-   }   // end loop #1
+   }   // end iz
+  }    // end loop #1
 
  // 3) -- advection ---
+ #pragma omp parallel for collapse(2) schedule(dynamic, 2)
  for (int ix = 0; ix < f->getNX(); ix++)
-  for (int iy = 0; iy < f->getNY(); iy++)
+  for (int iy = 0; iy < f->getNY(); iy++) {
+   double e, p, nb, nq, ns, vx, vy, vz;
+   double pi[4][4], piH[4][4], Pi, PiH;
    for (int iz = 0; iz < f->getNZ(); iz++) {
     Cell *c = f->getCell(ix, iy, iz);
     c->getPrimVarHCenter(eos, tau - 0.5 * dt, e, p, nb, nq, ns, vx, vy,
@@ -881,7 +900,8 @@ void Hydro::ISformal() {
      flux[i] = -tau * (c->getpi(0, i) + c->getPi() * u[0] * u[i]);
     flux[0] += tau * c->getPi();
     c->addFlux(flux[0], flux[1], flux[2], flux[3], 0., 0., 0.);
-   }  // advection loop (all cells)
+   }   // end iz
+  }    // advection loop (all cells)
 }
 
 // this procedure explicitly uses T_==0, X_==1, Y_==2, Z_==3
@@ -940,9 +960,20 @@ void Hydro::performStep(void) {
 
  f->updateM(tau, dt);
 
+ // ----------------------------------------------------------------------
+ //  OpenMP note.  hlle_flux() and visc_flux() call addFlux() on BOTH cells
+ //  adjacent to an interface, so the sweep direction itself cannot be split
+ //  across threads.  Each sweep is therefore parallelised over the two
+ //  TRANSVERSE indices only, with the sweep direction innermost: a thread
+ //  then owns a complete pencil of cells and no cell is ever touched by two
+ //  threads.  No atomics, no reductions, and the result does not depend on
+ //  the thread count or the schedule.
+ // ----------------------------------------------------------------------
+
  tau_z = dt / 2. / log(1 + dt / 2. / tau);
 
  //-----PREDICTOR-ideal
+ #pragma omp parallel for collapse(2) schedule(dynamic, 2)
  for (int iy = 0; iy < f->getNY(); iy++)
   for (int iz = 0; iz < f->getNZ(); iz++)
    for (int ix = 0; ix < f->getNX(); ix++) {
@@ -951,6 +982,7 @@ void Hydro::performStep(void) {
     c->clearFlux();
    }
  // X dir
+ #pragma omp parallel for collapse(2) schedule(dynamic, 2)
  for (int iy = 0; iy < f->getNY(); iy++)
   for (int iz = 0; iz < f->getNZ(); iz++)
    for (int ix = 0; ix < f->getNX() - 1; ix++) {
@@ -958,6 +990,7 @@ void Hydro::performStep(void) {
    }
  //	cout << "predictor X done\n" ;
  // Y dir
+ #pragma omp parallel for collapse(2) schedule(dynamic, 2)
  for (int iz = 0; iz < f->getNZ(); iz++)
   for (int ix = 0; ix < f->getNX(); ix++)
    for (int iy = 0; iy < f->getNY() - 1; iy++) {
@@ -965,6 +998,7 @@ void Hydro::performStep(void) {
    }
  //	cout << "predictor Y done\n" ;
  // Z dir
+ #pragma omp parallel for collapse(2) schedule(dynamic, 2)
  for (int ix = 0; ix < f->getNX(); ix++)
   for (int iy = 0; iy < f->getNY(); iy++)
    for (int iz = 0; iz < f->getNZ() - 1; iz++) {
@@ -972,6 +1006,7 @@ void Hydro::performStep(void) {
    }
  //	cout << "predictor Z done\n" ;
 
+ #pragma omp parallel for collapse(2) schedule(dynamic, 2)
  for (int iy = 0; iy < f->getNY(); iy++)
   for (int iz = 0; iz < f->getNZ(); iz++)
    for (int ix = 0; ix < f->getNX(); ix++) {
@@ -985,6 +1020,7 @@ void Hydro::performStep(void) {
 
  tau_z = dt / log(1 + dt / tau);
  // X dir
+ #pragma omp parallel for collapse(2) schedule(dynamic, 2)
  for (int iy = 0; iy < f->getNY(); iy++)
   for (int iz = 0; iz < f->getNZ(); iz++)
    for (int ix = 0; ix < f->getNX() - 1; ix++) {
@@ -992,6 +1028,7 @@ void Hydro::performStep(void) {
    }
  //	cout << "corrector X done\n" ;
  // Y dir
+ #pragma omp parallel for collapse(2) schedule(dynamic, 2)
  for (int iz = 0; iz < f->getNZ(); iz++)
   for (int ix = 0; ix < f->getNX(); ix++)
    for (int iy = 0; iy < f->getNY() - 1; iy++) {
@@ -999,6 +1036,7 @@ void Hydro::performStep(void) {
    }
  //	cout << "corrector Y done\n" ;
  // Z dir
+ #pragma omp parallel for collapse(2) schedule(dynamic, 2)
  for (int ix = 0; ix < f->getNX(); ix++)
   for (int iy = 0; iy < f->getNY(); iy++)
    for (int iz = 0; iz < f->getNZ() - 1; iz++) {
@@ -1006,6 +1044,7 @@ void Hydro::performStep(void) {
    }
  //	cout << "corrector Z done\n" ;
 
+ #pragma omp parallel for collapse(2) schedule(dynamic, 2)
  for (int iy = 0; iy < f->getNY(); iy++)
   for (int iz = 0; iz < f->getNZ(); iz++)
    for (int ix = 0; ix < f->getNX(); ix++) {
@@ -1022,6 +1061,7 @@ void Hydro::performStep(void) {
   ISformal();  // evolution of viscous quantities according to IS equations
 
   // X dir
+  #pragma omp parallel for collapse(2) schedule(dynamic, 2)
   for (int iy = 0; iy < f->getNY(); iy++)
    for (int iz = 0; iz < f->getNZ(); iz++)
     for (int ix = 0; ix < f->getNX() - 1; ix++) {
@@ -1029,6 +1069,7 @@ void Hydro::performStep(void) {
     }
   //	cout << "visc_flux X done\n" ;
   // Y dir
+  #pragma omp parallel for collapse(2) schedule(dynamic, 2)
   for (int iz = 0; iz < f->getNZ(); iz++)
    for (int ix = 0; ix < f->getNX(); ix++)
     for (int iy = 0; iy < f->getNY() - 1; iy++) {
@@ -1036,12 +1077,14 @@ void Hydro::performStep(void) {
     }
   //	cout << "visc_flux Y done\n" ;
   // Z dir
+  #pragma omp parallel for collapse(2) schedule(dynamic, 2)
   for (int ix = 0; ix < f->getNX(); ix++)
    for (int iy = 0; iy < f->getNY(); iy++)
     for (int iz = 0; iz < f->getNZ() - 1; iz++) {
      visc_flux(f->getCell(ix, iy, iz), f->getCell(ix, iy, iz + 1), Z_);
     }
 
+  #pragma omp parallel for collapse(2) schedule(dynamic, 2)
   for (int iy = 0; iy < f->getNY(); iy++)
    for (int iz = 0; iz < f->getNZ(); iz++)
     for (int ix = 0; ix < f->getNX(); ix++) {

@@ -4,7 +4,6 @@
 #include <cstdlib>
 #include "eos.h"
 #include "inc.h"
-#include <TGraph.h>
 
 using namespace std;
 
@@ -53,9 +52,13 @@ EoSs::EoSs(string fname, int ncols) {
  }
  finput.close();
 
- gp = new TGraph(edat, e, pGrid);
- gT = new TGraph(edat, e, tpGrid);
- gmu = new TGraph(edat, e, muGrid);
+ gp.init(edat, e, pGrid);
+ gT.init(edat, e, tpGrid);
+ gmu.init(edat, e, muGrid);
+ delete[] e;
+ delete[] pGrid;
+ delete[] tpGrid;
+ delete[] muGrid;
 
 #elif defined SIMPLE
 // nothing
@@ -66,7 +69,7 @@ EoSs::~EoSs(void) {}
 
 double EoSs::p(double e) {
 #if defined TABLE
- return gp->Eval(e);
+ return gp.eval(e);
 #elif defined SIMPLE
  return e / 3.;
 #endif
@@ -74,7 +77,7 @@ double EoSs::p(double e) {
 
 double EoSs::dpe(double e) {
 #if defined TABLE
- return (gp->Eval(e * 1.1) - gp->Eval(e)) / (0.1 * e);
+ return (gp.eval(e * 1.1) - gp.eval(e)) / (0.1 * e);
 #elif defined SIMPLE
  return 1. / 3.;
 #endif
@@ -82,7 +85,7 @@ double EoSs::dpe(double e) {
 
 double EoSs::t(double e) {
 #if defined TABLE
- return gT->Eval(e);
+ return gT.eval(e);
 #elif defined SIMPLE
  const double cnst =
      (16 + 0.5 * 21.0 * 2.5) * pow(C_PI, 2) / 30.0 / pow(0.197326968, 3);
@@ -92,7 +95,7 @@ double EoSs::t(double e) {
 
 double EoSs::mu(double e) {
 #if defined TABLE
- return gmu->Eval(e);
+ return gmu.eval(e);
 #elif defined SIMPLE
  return 0.;
 #endif
