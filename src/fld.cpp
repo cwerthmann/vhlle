@@ -54,7 +54,8 @@ void Fluid::getCMFvariables(Cell *c, double tau, double &e, double &nb,
 
 Fluid::Fluid(EoS *_eos, EoS *_eosH, TransportCoeff *_trcoeff, int _nx, int _ny,
              int _nz, double _minx, double _maxx, double _miny, double _maxy,
-             double _minz, double _maxz, double _dt, double eCrit) {
+             double _minz, double _maxz, double _dt, double eCrit, char *suffix) {
+ fluidsuffix=strdup(suffix);
  eos = _eos;
  eosH = _eosH;
  trcoeff = _trcoeff;
@@ -109,14 +110,13 @@ Fluid::~Fluid() {
  delete cell0;
 }
 
-void Fluid::initOutput(const char *dir, double tau0, char *suffix) {
- fluidsuffix=strdup(suffix);
+void Fluid::initOutput(const char *dir, double tau0) {
  char command[255];
  sprintf(command, "mkdir -p %s", dir);
  int return_mkdir = system(command);
  cout << "mkdir returns: " << return_mkdir << endl;
  string suff = "_";
- suff.append(suffix);
+ suff.append(fluidsuffix);
  suff.append(".dat");
  string outx = dir;
  outx.append("/outx");

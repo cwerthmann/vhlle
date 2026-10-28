@@ -31,9 +31,9 @@ private:
 public:
  Fluid(EoS *_eos, EoS *_eosH, TransportCoeff *_trcoeff, int _nx, int _ny,
        int _nz, double _minx, double _maxx, double _miny, double _maxy,
-       double _minz, double _maxz, double dt, double eCrit);
+       double _minz, double _maxz, double dt, double eCrit, char *suffix);
  ~Fluid();
- void initOutput(const char *dir, double tau0, char *suffix);
+ void initOutput(const char *dir, double tau0);
  int output_xy_spacing;
  int output_eta_points;
  int output_tau_spacing;
@@ -65,6 +65,7 @@ public:
   return &cell[ix + nx * iy + nx * ny * iz];
  }
 
+ char* getSuffix() { return fluidsuffix; }
  void correctImagCells(void);      // only ideal hydro part
  void correctImagCellsFull(void);  // correct ideal+visc
  void updateM(double tau, double dt);

@@ -315,10 +315,11 @@ Fluid* expandGrid2x(Hydro* h, EoS* eos, EoS* eosH, TransportCoeff *trcoeff) {
    cout << "this grid expansion works only with symmetric min/max ranges\n";
    return f;
  }
+ char* suffix = f->getSuffix();
  // creating a new fluid, twice the transverse size of the current one
  Fluid* fnew = new Fluid(eos, eosH, trcoeff, f->getNX(), f->getNY(), f->getNZ(),
    2.0*f->getX(0), 2.0*f->getX(f->getNX()-1), 2.0*f->getY(0), 2.0*f->getY(f->getNY()-1),
-   f->getZ(0), f->getZ(f->getNZ()-1), 2.0*h->getDtau(), f->geteCrit());
+   f->getZ(0), f->getZ(f->getNZ()-1), 2.0*h->getDtau(), f->geteCrit(), suffix);
  // filling the new fluid
  for(int ix=0; ix<f->getNX(); ix++)
   for(int iy=0; iy<f->getNY(); iy++)
@@ -443,11 +444,11 @@ if(adaptiveTimestep==1){
                             etaSMin, eEtaSMin, etaH_eta0, etaH_eta2, etaH_eta4);
 
  f_p = new Fluid(eos, eosH, trcoeff, nx, ny, nz, xmin, xmax, ymin, ymax, etamin,
-               etamax, dtau, eCrit);
+               etamax, dtau, eCrit, "proj");
  f_t = new Fluid(eos, eosH, trcoeff, nx, ny, nz, xmin, xmax, ymin, ymax, etamin,
-               etamax, dtau, eCrit);
+               etamax, dtau, eCrit, "targ");
  f_f = new Fluid(eos, eosH, trcoeff, nx, ny, nz, xmin, xmax, ymin, ymax, etamin,
-               etamax, dtau, eCrit);
+               etamax, dtau, eCrit, "fire");
  cout << "fluid allocation done\n";
 
 /*
@@ -511,9 +512,9 @@ if(adaptiveTimestep==1){
 
  mh = new MultiHydro(f_p, f_t, f_f, h_p, h_t, h_f, eos, trcoeff, dtau, eCrit, snn, Etot, xi_fa, lambda, formationTime, frictionModel, decreasingFormTime, xi_q, xi_h, alphaxs, betaxs, unification, physicality_limiter, tau_unification, NTemp, Nvatilde, Tmax, xsectparam, nucleons, verbose);
 
- f_p->initOutput(outputDir.c_str(), tau0, "proj");
- f_t->initOutput(outputDir.c_str(), tau0, "targ");
- f_f->initOutput(outputDir.c_str(), tau0, "fire");
+ f_p->initOutput(outputDir.c_str(), tau0);
+ f_t->initOutput(outputDir.c_str(), tau0);
+ f_f->initOutput(outputDir.c_str(), tau0);
  mh->initOutput(outputDir.c_str());
  //f_p->outputCorona(tau0);
  //f_t->outputCorona(tau0);
