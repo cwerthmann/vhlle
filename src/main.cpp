@@ -551,7 +551,7 @@ if(adaptiveTimestep==1){
    cout<<", dtau="<<dtau_adaptive;
   }
   cout<< endl;
-  if (0.1*f_p->getDz()*h_p->getTau() > dtau&&adaptiveTimestep!=2) {
+  if (0.1*f_p->getDz()*h_p->getTau()>h_p->getDtau() && adaptiveTimestep!=2) {
    cout << "grid resize" << endl;
    f_p = expandGrid2x(h_p, eos, eosH, trcoeff);
    f_t = expandGrid2x(h_t, eos, eosH, trcoeff);
